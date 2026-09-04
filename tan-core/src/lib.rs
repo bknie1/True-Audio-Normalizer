@@ -11,8 +11,15 @@ pub use offline::normalize_offline;
 /// (perceived loudness, not raw amplitude).
 #[derive(Clone, Copy)]
 pub struct Profile {
-    /// Where perceived loudness should sit.
-    pub target_db: f32,
+    /// The engine levels around the content's own self-measured baseline
+    /// rather than any absolute target, so overall perceived volume always
+    /// matches the source. Perception anchors on the prominent material, so
+    /// the baseline follows louder content quickly (this many seconds)...
+    pub baseline_rise_s: f32,
+    /// ...and sinks toward quieter content much more slowly, keeping it
+    /// parked near the loud level. Loud passages barely move; quiet
+    /// dialogue rises to meet them.
+    pub baseline_sink_s: f32,
     /// Most we will ever amplify quiet content.
     pub max_boost_db: f32,
     /// Most we will ever attenuate loud content.
@@ -54,7 +61,8 @@ impl Profile {
     /// Movie/TV: strong leveling so dialogue and action land close together.
     pub fn movie() -> Self {
         Self {
-            target_db: -24.0,
+            baseline_rise_s: 1.5,
+            baseline_sink_s: 20.0,
             max_boost_db: 12.0,
             max_cut_db: 15.0,
             strength: 0.85,
@@ -72,7 +80,8 @@ impl Profile {
     /// Music: gentler correction that preserves intentional dynamics.
     pub fn music() -> Self {
         Self {
-            target_db: -20.0,
+            baseline_rise_s: 4.0,
+            baseline_sink_s: 30.0,
             max_boost_db: 6.0,
             max_cut_db: 8.0,
             strength: 0.4,
@@ -100,6 +109,15 @@ pub struct Normalizer {
     recover_per_frame: f32,
     fall_per_frame: f32,
     fast_fall_ratio: f32,
+    baseline_db: Option<f32>,
+    baseline_rise_coef: f32,
+    baseline_sink_coef: f32,
+    baseline_fast_coef: f32,
+    /// While counting down, the baseline chases the signal quickly - it
+    /// locks onto the content's real level within a couple of seconds of
+    /// audible material (covering meter warmup and enable-mid-stream),
+    /// then switches to the slow drift.
+    lock_frames_left: usize,
 }
 
 impl Normalizer {
@@ -114,6 +132,11 @@ impl Normalizer {
             recover_per_frame: profile.recover_db_per_s / sample_rate as f32,
             fall_per_frame: profile.fall_db_per_s / sample_rate as f32,
             fast_fall_ratio: (profile.fast_fall_db_per_s / profile.fall_db_per_s).max(1.0),
+            baseline_db: None,
+            baseline_rise_coef: loudness::smoothing_coef(profile.baseline_rise_s, sample_rate as f32),
+            baseline_sink_coef: loudness::smoothing_coef(profile.baseline_sink_s, sample_rate as f32),
+            baseline_fast_coef: loudness::smoothing_coef(0.5, sample_rate as f32),
+            lock_frames_left: 2 * sample_rate as usize,
         }
     }
 
@@ -136,8 +159,33 @@ impl Normalizer {
             let loudness = self.meter.process_frame(frame);
 
             if loudness > p.gate_db {
+                // The baseline is the content's own slowly-tracked average
+                // loudness; leveling happens around it, never toward an
+                // absolute number, so overall volume stays where the source
+                // put it. It locks to the first audible material instantly,
+                // then drifts with the program.
+                let baseline = match self.baseline_db {
+                    None => {
+                        self.baseline_db = Some(loudness);
+                        loudness
+                    }
+                    Some(prev) => {
+                        let coef = if self.lock_frames_left > 0 {
+                            self.lock_frames_left -= 1;
+                            self.baseline_fast_coef
+                        } else if loudness > prev {
+                            self.baseline_rise_coef
+                        } else {
+                            self.baseline_sink_coef
+                        };
+                        let b = coef * prev + (1.0 - coef) * loudness;
+                        self.baseline_db = Some(b);
+                        b
+                    }
+                };
+
                 let desired =
-                    ((p.target_db - loudness) * p.strength).clamp(-p.max_cut_db, p.max_boost_db);
+                    ((baseline - loudness) * p.strength).clamp(-p.max_cut_db, p.max_boost_db);
                 if desired > self.gain_db {
                     let step = if self.gain_db < 0.0 {
                         self.recover_per_frame
@@ -146,11 +194,12 @@ impl Normalizer {
                     };
                     self.gain_db = (self.gain_db + step).min(desired);
                 } else {
-                    // How loud the *output* is right now relative to target.
-                    // The bigger the overshoot, the faster we cut, so large
-                    // corrections finish while the onset is still masking them
-                    // and small ones stay too slow to hear as pumping.
-                    let overshoot = loudness + self.gain_db - p.target_db;
+                    // How loud the *output* is right now relative to the
+                    // baseline. The bigger the overshoot, the faster we cut,
+                    // so large corrections finish while the onset is still
+                    // masking them and small ones stay too slow to hear as
+                    // pumping.
+                    let overshoot = loudness + self.gain_db - baseline;
                     let urgency = (overshoot / 3.0).clamp(1.0, self.fast_fall_ratio);
                     self.gain_db = (self.gain_db - self.fall_per_frame * urgency).max(desired);
                 }
@@ -186,29 +235,59 @@ mod tests {
         db
     }
 
+    /// Uniform content is already at its own baseline; TAN must not
+    /// re-level it. This is what keeps overall volume identical to the
+    /// source when the material doesn't need help.
     #[test]
-    fn quiet_content_gets_boosted() {
-        let mut n = Normalizer::new(48000, 1, Profile::movie());
-        let mut buf = sine(0.01, 997.0, 4.0, 48000);
-        let before = loudness_of(&buf[96000..], 48000);
-        n.process(&mut buf);
-        let after = loudness_of(&buf[96000..], 48000);
-        assert!(
-            after - before > 8.0,
-            "quiet passage should rise by ~10 dB, went {before} -> {after}"
-        );
+    fn steady_content_is_left_alone() {
+        for amplitude in [0.05, 0.5] {
+            let mut n = Normalizer::new(48000, 1, Profile::movie());
+            let mut buf = sine(amplitude, 997.0, 4.0, 48000);
+            let before = loudness_of(&buf[96000..], 48000);
+            n.process(&mut buf);
+            let after = loudness_of(&buf[96000..], 48000);
+            assert!(
+                (after - before).abs() < 1.5,
+                "steady content at amp {amplitude} should pass through, went {before} -> {after}"
+            );
+        }
     }
 
+    fn alternating(sr: u32) -> Vec<f32> {
+        let mut buf = Vec::new();
+        for block in 0..4 {
+            let amp = if block % 2 == 0 { 0.02 } else { 0.6 };
+            buf.extend(sine(amp, 300.0, 3.0, sr));
+        }
+        buf
+    }
+
+    /// Quiet passages rise toward the content's own average and loud ones
+    /// fall toward it - leveling around the baseline, not toward any
+    /// absolute target.
     #[test]
-    fn loud_content_gets_tamed() {
-        let mut n = Normalizer::new(48000, 1, Profile::movie());
-        let mut buf = sine(0.7, 997.0, 4.0, 48000);
-        let before = loudness_of(&buf[96000..], 48000);
+    fn mixed_content_is_leveled_around_its_baseline() {
+        let sr = 48000;
+        let mut buf = alternating(sr);
+        let quiet_in = loudness_of(&buf[8 * sr as usize..9 * sr as usize], sr);
+        let loud_in = loudness_of(&buf[11 * sr as usize..], sr);
+        let mut n = Normalizer::new(sr, 1, Profile::movie());
         n.process(&mut buf);
-        let after = loudness_of(&buf[96000..], 48000);
+        let quiet_out = loudness_of(&buf[8 * sr as usize..9 * sr as usize], sr);
+        let loud_out = loudness_of(&buf[11 * sr as usize..], sr);
         assert!(
-            before - after > 6.0,
-            "loud passage should drop substantially, went {before} -> {after}"
+            quiet_out - quiet_in > 8.0,
+            "established quiet should rise to meet the baseline: {quiet_in} -> {quiet_out}"
+        );
+        assert!(
+            loud_out < loud_in + 1.0,
+            "established loud must not rise: {loud_in} -> {loud_out}"
+        );
+        let range_in = loud_in - quiet_in;
+        let range_out = loud_out - quiet_out;
+        assert!(
+            range_out < range_in * 0.6,
+            "range should shrink substantially: {range_in} -> {range_out}"
         );
     }
 
@@ -253,34 +332,47 @@ mod tests {
             }
             db
         };
+        // Settled point is close by on purpose: the baseline itself drifts
+        // slowly during a sustained loud passage (by design), so we compare
+        // against 600 ms rather than seconds later.
         let early = window_at(150);
-        let settled = window_at(1350);
+        let settled = window_at(600);
+        // One-sided on purpose: the artifact that must never happen is the
+        // level audibly *dropping* after the onset. Gentle upward release as
+        // sustained loudness becomes the new baseline is normal compressor
+        // behavior.
         assert!(
-            (early - settled).abs() < 3.0,
-            "150 ms after a loud onset the level should already be settled \
-             (no audible slide): early {early}, settled {settled}"
+            early < settled + 3.0,
+            "level must not slide down after a loud onset: early {early}, settled {settled}"
         );
     }
 
+    /// The user-facing contract behind the adaptive baseline: turning TAN
+    /// on must not make content quieter (or louder) overall.
     #[test]
-    fn dynamic_range_is_reduced() {
+    fn overall_volume_is_preserved() {
         let sr = 48000;
-        let mut buf = Vec::new();
-        buf.extend(sine(0.02, 300.0, 3.0, sr));
-        buf.extend(sine(0.6, 300.0, 3.0, sr));
-        let quiet_in = loudness_of(&buf[2 * sr as usize..3 * sr as usize], sr);
-        let loud_in = loudness_of(&buf[5 * sr as usize..], sr);
-
+        let mut buf = alternating(sr);
+        // Preservation is a steady-state property: measure the second half,
+        // after the baseline has locked onto the content.
+        let mean_of = |samples: &[f32]| -> f32 {
+            let mut meter = LoudnessMeter::new(sr, 1);
+            let mut readings = Vec::new();
+            for (i, s) in samples.iter().enumerate() {
+                let db = meter.process_frame(&[*s]);
+                if i % 4800 == 0 && db > -55.0 && i > 6 * sr as usize {
+                    readings.push(db);
+                }
+            }
+            readings.iter().sum::<f32>() / readings.len() as f32
+        };
+        let before = mean_of(&buf);
         let mut n = Normalizer::new(sr, 1, Profile::movie());
         n.process(&mut buf);
-        let quiet_out = loudness_of(&buf[2 * sr as usize..3 * sr as usize], sr);
-        let loud_out = loudness_of(&buf[5 * sr as usize..], sr);
-
-        let range_in = loud_in - quiet_in;
-        let range_out = loud_out - quiet_out;
+        let after = mean_of(&buf);
         assert!(
-            range_out < range_in * 0.5,
-            "range should at least halve: {range_in} -> {range_out}"
+            (after - before).abs() < 2.5,
+            "overall loudness should be preserved: {before} -> {after}"
         );
     }
 }

@@ -40,7 +40,7 @@ const SAMPLE_RATE: u32 = 48000;
 /// (modulated midrange tone) alternating with loud action bursts (bass hits
 /// plus noise). Deterministic, so demo results are reproducible.
 fn generate(path: &str) {
-    let section = 3 * SAMPLE_RATE as usize;
+    let section = 6 * SAMPLE_RATE as usize;
     let mut samples = Vec::with_capacity(section * 4 * 2);
     let mut noise_state: u64 = 0x2545F4914F6CDD1D;
     let mut noise = || {
@@ -76,7 +76,7 @@ fn generate(path: &str) {
         bits_per_sample: 16,
     };
     wav::write_wav(path, &spec, &samples).expect("failed to write wav");
-    println!("wrote {path}: 12s stereo, alternating quiet dialogue / loud action");
+    println!("wrote {path}: 24s stereo, alternating quiet dialogue / loud action");
 }
 
 fn process(input: &str, output: &str, profile: Profile, two_pass: bool) {

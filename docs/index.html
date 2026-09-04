@@ -100,7 +100,7 @@
 
   <div class="card">
     <h3>Before</h3>
-    <p>Dialogue sits ~24 dB below the action - the "constantly grabbing the remote" experience.</p>
+    <p>Dialogue sits ~26 dB below the action - the "constantly grabbing the remote" experience.</p>
     <audio controls preload="none" src="audio/demo-input.wav"></audio>
   </div>
 
@@ -118,11 +118,16 @@
 
   <table>
     <tr><th>K-weighted loudness</th><th>Before</th><th>Live</th><th>Two-pass</th></tr>
-    <tr><td>Quiet passages</td><td>-30.9 dB</td><td>-27.8 dB</td><td>-27.6 dB</td></tr>
-    <tr><td>Loud passages</td><td>-6.6 dB</td><td>-20.5 dB</td><td>-21.5 dB</td></tr>
-    <tr><td>Loudness range</td><td>24.3 dB</td><td class="win">7.3 dB</td><td class="win">6.1 dB</td></tr>
-    <tr><td>Peak</td><td>0.95</td><td>0.89 (limited)</td><td>0.21 (never hot)</td></tr>
+    <tr><td>Quiet passages</td><td>-31.9 dB</td><td>-28.3 dB</td><td>-20.7 dB</td></tr>
+    <tr><td>Loud passages</td><td>-5.9 dB</td><td>-8.9 dB</td><td>-8.3 dB</td></tr>
+    <tr><td>Loudness range</td><td>26.0 dB</td><td class="win">19.4 dB</td><td class="win">12.4 dB</td></tr>
+    <tr><td>Peak</td><td>0.95</td><td>0.89 (limited)</td><td>0.89 (limited)</td></tr>
   </table>
+  <p>Note the loud passages barely move: TAN levels around the content's own
+  baseline, so overall volume stays where the source put it - dialogue rises
+  to meet the action, not the other way around. (Live numbers include the
+  engine's first cold seconds; on real-length content the adapted behavior
+  dominates.)</p>
 
   <h2>Try it yourself, right here</h2>
   <p>The same Rust engine, compiled to WebAssembly, running entirely in your
@@ -267,9 +272,13 @@
     <li><strong>Perceptual loudness metering</strong> - ITU-R BS.1770 K-weighting
     (shelf + high-pass biquads), so gain decisions track how loud things
     <em>sound</em>, not raw sample amplitude.</li>
-    <li><strong>Two-way gain riding</strong> - quiet dialogue is boosted toward a
-    target, loud passages are pulled down, with separate speed limits per
-    direction, fast recovery after cuts, and a gate so silence is never
+    <li><strong>Baseline-anchored gain riding</strong> - the engine tracks the
+    content's own average loudness (following louder material quickly,
+    sinking toward quiet slowly, the way perception anchors on the prominent
+    level) and levels around <em>that</em>, never toward an absolute target -
+    so enabling TAN never changes how loud things feel overall. Quiet
+    dialogue is boosted toward the baseline and loud peaks pulled down to it,
+    with separate speed limits per direction and a gate so silence is never
     amplified into hiss. Cut speed scales with overshoot, so a big correction
     finishes within ~50 ms of a loud onset - masked by the onset itself -
     while small corrections stay too slow to hear as pumping.</li>

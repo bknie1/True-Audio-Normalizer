@@ -37,13 +37,30 @@ pub fn normalize_offline(samples: &mut Vec<f32>, sample_rate: u32, channels: usi
         }
     }
 
+    // Offline, the baseline is the energy-domain mean over all audible
+    // material (the same averaging BS.1770 program loudness uses). Energy
+    // averaging anchors near the prominent, louder material - so loud
+    // passages barely move and quiet ones rise to meet them, and the file's
+    // overall perceived volume comes out where it went in.
+    let audible: Vec<f32> = loudness
+        .iter()
+        .cloned()
+        .filter(|&db| db > p.gate_db)
+        .collect();
+    if audible.is_empty() {
+        return;
+    }
+    let mean_energy =
+        audible.iter().map(|db| 10.0f32.powf(db / 10.0)).sum::<f32>() / audible.len() as f32;
+    let baseline = 10.0 * mean_energy.log10();
+
     // Desired gain per hop; during gated (near-silent) stretches, hold the
     // previous value so silence never gets boosted.
     let mut desired = Vec::with_capacity(loudness.len());
     let mut held = 0.0f32;
     for &db in &loudness {
         if db > p.gate_db {
-            held = ((p.target_db - db) * p.strength).clamp(-p.max_cut_db, p.max_boost_db);
+            held = ((baseline - db) * p.strength).clamp(-p.max_cut_db, p.max_boost_db);
         }
         desired.push(held);
     }
@@ -186,8 +203,8 @@ mod tests {
         let range_in = loud_in - quiet_in;
         let range_out = loud_out - quiet_out;
         assert!(
-            range_out < range_in * 0.4,
-            "offline should tighten range hard: {range_in} -> {range_out}"
+            range_out < range_in * 0.6,
+            "offline should tighten range substantially: {range_in} -> {range_out}"
         );
     }
 

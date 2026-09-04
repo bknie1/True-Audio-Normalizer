@@ -9,9 +9,11 @@ touch anything else about their audio setup.
 ## Status
 
 The core engine works: perceptual (BS.1770 K-weighted) loudness metering, a two-way
-automatic gain rider, and a look-ahead peak limiter, with movie and music profiles.
-On the bundled demo it cuts a 24.3 dB loudness range down to 10.7 dB. Hear it at
-[bknie1.github.io/TAN](https://bknie1.github.io/TAN/).
+gain rider anchored to the content's own baseline loudness (so overall volume always
+matches the source), and a look-ahead peak limiter, with movie and music profiles.
+On the bundled demo the offline mode halves a 26 dB loudness range while leaving the
+loud passages within ~2.5 dB of the original. Hear it, or run it on your own files
+and live browser-tab audio, at [bknie1.github.io/TAN](https://bknie1.github.io/TAN/).
 
 Roadmap:
 
