@@ -87,6 +87,64 @@
     font-size: 0.85rem;
   }
   .milestones li { margin: 0.4rem 0; }
+
+  .zone {
+    position: relative;
+    padding: 3rem 0 0.5rem;
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .zone.in { opacity: 1; transform: translateY(0); }
+  .zone::before {
+    content: "";
+    position: absolute;
+    top: -20vh;
+    left: 50%;
+    width: 140%;
+    height: 60vh;
+    transform: translateX(-50%);
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--zone) 22%, transparent), transparent 70%);
+    filter: blur(10px);
+    z-index: -1;
+    pointer-events: none;
+  }
+  .zone h2 {
+    color: var(--zone);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .zone h2::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--zone);
+    flex: none;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px;
+    background: var(--edge);
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+  }
+  .stat {
+    background: var(--card);
+    padding: 1.1rem 1rem;
+    text-align: center;
+  }
+  .stat .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat .value { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.02em; margin-top: 0.25rem; }
+  .stat .value.win { color: var(--zone); }
+  .stat .delta { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; margin: 0.75rem 0; }
+  details table { margin-top: 0.75rem; }
   button {
     background: var(--accent);
     color: #fff;
@@ -116,6 +174,7 @@
   the job blind instead: it measures perceived loudness the way your ear does
   and rides gain in real time, and it's MIT licensed Rust you can actually read.</p>
 
+  <section class="zone" style="--zone: #d1603a">
   <h2>Hear it</h2>
   <p>A deliberately badly mixed test signal: whisper-level dialogue alternating
   with loud action bursts. Same clip, before and after TAN's movie profile.
@@ -139,18 +198,41 @@
     <audio controls preload="none" src="audio/demo-output-twopass.wav"></audio>
   </div>
 
-  <table>
-    <tr><th>K-weighted loudness</th><th>Before</th><th>Live</th><th>Two-pass</th></tr>
-    <tr><td>Quiet passages</td><td>-31.9 dB</td><td>-28.3 dB</td><td>-20.7 dB</td></tr>
-    <tr><td>Loud passages</td><td>-5.9 dB</td><td>-8.9 dB</td><td>-8.3 dB</td></tr>
-    <tr><td>Loudness range</td><td>26.0 dB</td><td class="win">19.4 dB</td><td class="win">12.4 dB</td></tr>
-    <tr><td>Peak</td><td>0.95</td><td>0.89 (limited)</td><td>0.89 (limited)</td></tr>
-  </table>
+  <p class="section-lead">Loudness range - how far apart the quiet and loud parts sit:</p>
+  <div class="stats">
+    <div class="stat">
+      <div class="label">Before</div>
+      <div class="value">26.0 dB</div>
+      <div class="delta">the "constantly grabbing the remote" gap</div>
+    </div>
+    <div class="stat">
+      <div class="label">Live mode</div>
+      <div class="value win">19.4 dB</div>
+      <div class="delta">real-time, 8 ms latency</div>
+    </div>
+    <div class="stat">
+      <div class="label">Two-pass</div>
+      <div class="value win">12.4 dB</div>
+      <div class="delta">artifact-free, analyzes ahead</div>
+    </div>
+  </div>
+  <details>
+    <summary>Full breakdown</summary>
+    <table>
+      <tr><th>K-weighted loudness</th><th>Before</th><th>Live</th><th>Two-pass</th></tr>
+      <tr><td>Quiet passages</td><td>-31.9 dB</td><td>-28.3 dB</td><td>-20.7 dB</td></tr>
+      <tr><td>Loud passages</td><td>-5.9 dB</td><td>-8.9 dB</td><td>-8.3 dB</td></tr>
+      <tr><td>Loudness range</td><td>26.0 dB</td><td class="win">19.4 dB</td><td class="win">12.4 dB</td></tr>
+      <tr><td>Peak</td><td>0.95</td><td>0.89 (limited)</td><td>0.89 (limited)</td></tr>
+    </table>
+  </details>
   <p>Loud passages barely move. TAN levels around the content's own baseline,
   so overall volume stays right where the source put it, and dialogue rises to
   meet the action. (Live numbers include the engine's first cold seconds; on
   real-length content the adapted behavior dominates.)</p>
+  </section>
 
+  <section class="zone" style="--zone: #c98a2e">
   <h2>Try it yourself, right here</h2>
   <p>Same Rust engine, compiled to WebAssembly, running entirely in your
   browser. Nothing you drop in here ever leaves your machine.</p>
@@ -177,6 +259,7 @@
     <button id="live-btn">Start live TAN</button>
     <p id="live-status"></p>
   </div>
+  </section>
 
   <script>
     // no-cache still uses ETag revalidation (a cheap 304 when unchanged),
@@ -294,8 +377,27 @@
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(() => {});
     }
+
+    // Snap each section into place as it scrolls into view. Deferred to
+    // DOMContentLoaded because this script tag sits before the later zones
+    // (How it works, Reproduce it, Roadmap) in the document.
+    document.addEventListener("DOMContentLoaded", () => {
+      const zoneObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("in");
+              zoneObserver.unobserve(entry.target);
+            }
+          }
+        },
+        { threshold: 0.15 }
+      );
+      document.querySelectorAll(".zone").forEach((el) => zoneObserver.observe(el));
+    });
   </script>
 
+  <section class="zone" style="--zone: #3f9179">
   <h2>How it works</h2>
   <p>Three stages, all classical DSP, all in
   <a href="https://github.com/bknie1/True-Audio-Normalizer/tree/main/tan-core/src">tan-core</a>:</p>
@@ -317,20 +419,25 @@
     limiter watches incoming audio, so gain ramps down <em>before</em> a peak
     arrives instead of clicking after it.</li>
   </ol>
+  </section>
 
+  <section class="zone" style="--zone: #3d7ab5">
   <h2>Reproduce it</h2>
   <pre>git clone https://github.com/bknie1/True-Audio-Normalizer
 cd True-Audio-Normalizer
 cargo run --release -p tan-cli -- gen demo-input.wav
 cargo run --release -p tan-cli -- process demo-input.wav demo-output.wav movie</pre>
+  </section>
 
+  <section class="zone" style="--zone: #5661c4">
   <h2>Roadmap</h2>
   <ul class="milestones">
-    <li><strong>Done</strong> - hand-written WAV codec, perceptual metering, baseline-anchored AGC, look-ahead limiter, movie/music profiles, a native shared library, a first-cut Windows live tool, tagged releases with installers, CI on Windows/macOS/Linux.</li>
+    <li><strong>Now</strong> - hand-written WAV codec, perceptual metering, baseline-anchored AGC, look-ahead limiter, movie/music profiles, a native shared library, a first-cut Windows live tool, tagged releases with installers, CI on Windows/macOS/Linux.</li>
     <li><strong>Next</strong> - a real Windows Audio Processing Object, so TAN sits in the system audio pipeline directly instead of needing a second device or a virtual cable.</li>
     <li><strong>Then</strong> - blind dialogue detection: a lightweight real-time neural model (DeepFilterNet-style) so speech specifically stays intelligible in the mix - the thing Dolby needs mastering-time metadata to do.</li>
     <li><strong>After that</strong> - live system-audio adapters for macOS/Linux, mobile.</li>
   </ul>
+  </section>
 
   <footer>
     <a href="https://github.com/bknie1/True-Audio-Normalizer">github.com/bknie1/True-Audio-Normalizer</a> · MIT licensed
