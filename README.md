@@ -10,6 +10,9 @@ Hear it, run it on your own files, or pipe live browser-tab audio (YouTube inclu
 through it at **[bknie1.github.io/TAN](https://bknie1.github.io/TAN/)**. Everything
 runs client-side; nothing is uploaded.
 
+New to audio processing or Rust? Start with **[TAN, explained like you're five](ELI5.md)** -
+the no-jargon version of everything below.
+
 Unlike the commercial equivalents (Dolby Volume and friends), TAN works blind - no
 loudness metadata baked in at mastering time, no licensed decoder, no walled garden.
 Everything here is MIT-licensed Rust with no external dependencies: the whole engine

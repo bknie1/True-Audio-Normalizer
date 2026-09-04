@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TAN, explained simply</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --ink: #1c1c1a;
+    --muted: #6b6a66;
+    --card: #ffffff;
+    --edge: #e3e1dc;
+    --accent: #b3552e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513;
+      --ink: #e8e6e1;
+      --muted: #98968f;
+      --card: #201f1c;
+      --edge: #34322d;
+      --accent: #e0764a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 0.25rem; letter-spacing: -0.02em; }
+  .tagline { color: var(--muted); margin: 0 0 2.5rem; }
+  h2 { font-size: 1.2rem; margin: 2.5rem 0 0.5rem; }
+  p { margin: 0.75rem 0; }
+  a { color: var(--accent); }
+  ul { padding-left: 1.25rem; }
+  li { margin: 0.4rem 0; }
+  footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TAN, explained simply</h1>
+  <p class="tagline">No jargon. The technical version is in the
+  <a href="https://github.com/bknie1/TAN">repository</a>; the demos are
+  <a href="index.html">back on the main page</a>.</p>
+
+  <h2>The problem</h2>
+  <p>You're watching a movie at night. The characters whisper something
+  important, so you turn the volume up. Thirty seconds later a building explodes
+  and wakes up the whole house, so you grab the remote and turn it down. Repeat
+  for two hours.</p>
+  <p>That happens because movies are mixed for theaters, where huge
+  quiet-to-loud swings feel exciting. On a TV or laptop at home, they're just
+  annoying.</p>
+
+  <h2>What TAN does</h2>
+  <p>TAN is like a very fast, very patient friend sitting next to you with a
+  hand on the volume knob at all times:</p>
+  <ul>
+    <li>When someone whispers, it nudges the volume up a little.</li>
+    <li>When something explodes, it eases the volume down a little.</li>
+    <li>The rest of the time, it leaves everything alone.</li>
+  </ul>
+  <p>You hear everything at a comfortable, even level, and you never touch the
+  remote.</p>
+
+  <h2>How can it react before the explosion?</h2>
+  <p>It cheats time a tiny bit. TAN holds the sound back for 8 milliseconds -
+  less than a hundredth of a second, way too short to notice - and uses that
+  head start to peek at what's coming. If a bang is on the way, the volume is
+  already lowered by the time it reaches your ears. No flinch, no click.</p>
+  <p>And when TAN processes a whole file (rather than live audio), it gets to
+  "watch the movie" once before doing anything. Then it knows about every
+  explosion in advance and can make every adjustment perfectly smoothly.</p>
+
+  <h2>Why doesn't it just make everything the same volume?</h2>
+  <p>That would sound awful - like a robot flattening all the excitement out.
+  TAN figures out the show's own natural, normal loudness and gently pulls
+  everything <em>toward</em> that. Quiet dialogue comes up to normal, explosions
+  come down to slightly-above-normal, and the show still feels like itself. It
+  also never changes the overall volume you chose - your volume knob still means
+  what it always meant.</p>
+  <p>One more trick: it measures loudness the way your <em>ear</em> hears it,
+  not the way a computer sees the numbers. A deep rumble and a clear voice can
+  look identical to a computer but sound completely different to you - TAN uses
+  the same "hearing model" the TV and streaming industry uses, so its idea of
+  "too loud" matches yours.</p>
+
+  <h2>Doesn't this already exist?</h2>
+  <p>Sort of. Companies like Dolby sell something similar, but their version
+  needs special information baked into the movie when it's made, and it only
+  works on devices that pay to license their technology. TAN does the whole job
+  just by listening - no secret metadata, no licensed chip, no locked
+  ecosystem - and all of its code is public, free, and readable by anyone.</p>
+
+  <h2>Where's it going?</h2>
+  <p>Today TAN works on files and on browser audio. The plan is for it to
+  eventually sit quietly inside your computer, phone, or TV and fix
+  <em>everything</em> you play, automatically. The step after that: teaching it
+  to recognize spoken dialogue specifically, so voices stay clear even when
+  music and effects are trying to bury them.</p>
+
+  <footer>
+    <a href="index.html">Back to the demos</a> ·
+    <a href="https://github.com/bknie1/TAN">github.com/bknie1/TAN</a>
+  </footer>
+</main>
+</body>
+</html>
