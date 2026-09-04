@@ -46,29 +46,7 @@
     color: var(--ink);
     font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  body { overflow-x: hidden; } /* the full-bleed header wave uses 100vw */
-  .top { max-width: 900px; margin: 0 auto; padding: 3rem 1.25rem 0; position: relative; }
-  .top > *:not(#hero-scene) { position: relative; z-index: 1; }
-  /* Same wave imagery as the landing hero, full-bleed behind the header;
-     the loop is driven by the script at the bottom of the page. */
-  #hero-scene {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    width: 100vw;
-    /* Without an explicit height an inline SVG sizes to its viewBox ratio
-       against the 100vw width (~455px), overflowing the header and
-       bleeding the wave down over the first card. height:100% pins it to
-       the header box instead. */
-    height: 100%;
-    transform: translateX(-50%);
-    opacity: 0.45;
-    pointer-events: none;
-  }
-  #hero-scene rect {
-    transform-box: fill-box;
-    transform-origin: bottom;
-  }
+  .top { max-width: 900px; margin: 0 auto; padding: 3rem 1.25rem 0; }
   .top a.back { color: var(--muted); text-decoration: none; font-size: 0.9rem; }
   .top a.back:hover { color: var(--accent); }
   h1 { font-size: 2rem; margin: 1.5rem 0 0.5rem; letter-spacing: -0.02em; }
@@ -228,11 +206,6 @@
 <body>
 <div id="bg-layer"></div>
 <div class="top">
-  <svg id="hero-scene" aria-hidden="true" viewBox="0 0 900 320" preserveAspectRatio="xMidYMax slice">
-    <g class="scene-fade">
-      <g id="wave-feed"></g>
-    </g>
-  </svg>
   <a class="back" href="index.html">&larr; Back to TAN</a>
   <h1>Across every kind of content</h1>
   <p class="lead">Four real, licensed recordings, four completely different
@@ -516,69 +489,6 @@
     );
     window.addEventListener("resize", update);
     update();
-  })();
-
-  // ---- Header wave: the same bar-field imagery as the landing hero,
-  // stamped out once (seeded, stable layout) and looped with the Web
-  // Animations API: sweep in left to right, settle and breathe, fade
-  // out, start again. Reduced motion gets the settled field, no loop.
-  // The page's own scroll aurora supplies the color story here. ----
-  (function () {
-    const feed = document.getElementById("wave-feed");
-    if (!feed) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const LOOP = { duration: 14000, iterations: Infinity };
-    const H = 320, W = 900;               // hero-scene viewBox
-    const BASE = H * 0.82, MAXH = H * 0.62, N = 56;
-    const barW = W / N;
-    let seed = 11;
-    const rand = () => {
-      seed = (seed * 16807) % 2147483647;
-      return seed / 2147483647;
-    };
-    const COLOR = { high: "#d1603a", low: "#3d7ab5", mid: "#3f9179" };
-    const ALPHA = { high: 0.7, low: 0.7, mid: 0.45 };
-    const inAt = (i) => 0.02 + (i / N) * 0.2; // the left-to-right sweep
-    for (let i = 0; i < N; i++) {
-      const role = i % 7 === 0 ? "high" : i % 5 === 0 ? "low" : "mid";
-      const frac = role === "high" ? 0.44 + rand() * 0.12 : role === "low" ? 0.3 + rand() * 0.12 : 0.37 + rand() * 0.13;
-      const h = frac * MAXH;
-      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-      rect.setAttribute("class", "bar");
-      rect.setAttribute("x", (i * barW + barW * 0.18).toFixed(1));
-      rect.setAttribute("y", (BASE - h).toFixed(1));
-      rect.setAttribute("width", (barW * 0.64).toFixed(1));
-      rect.setAttribute("height", h.toFixed(1));
-      rect.setAttribute("rx", 3);
-      rect.setAttribute("fill", COLOR[role]);
-      rect.setAttribute("fill-opacity", ALPHA[role]);
-      feed.appendChild(rect);
-      if (!reduce) {
-        const amp = 1.03 + rand() * 0.04;
-        rect.animate(
-          [
-            { transform: "scaleY(0)", offset: 0 },
-            { transform: "scaleY(0)", offset: inAt(i), easing: "cubic-bezier(0.34, 1.4, 0.64, 1)" },
-            { transform: "scaleY(1)", offset: inAt(i) + 0.05, easing: "ease-in-out" },
-            { transform: `scaleY(${amp.toFixed(3)})`, offset: 0.55, easing: "ease-in-out" },
-            { transform: "scaleY(1)", offset: 0.75 },
-            { transform: "scaleY(1)", offset: 1 },
-          ],
-          LOOP
-        );
-      }
-    }
-    if (!reduce) {
-      document.querySelector("#hero-scene .scene-fade").animate(
-        [
-          { opacity: 1, offset: 0 },
-          { opacity: 1, offset: 0.88 },
-          { opacity: 0, offset: 0.96 },
-          { opacity: 0, offset: 1 },
-        ],
-        LOOP
-      );
-    }
   })();
 
   // Pop-in reveal as each row scrolls into view.
