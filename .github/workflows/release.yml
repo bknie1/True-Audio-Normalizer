@@ -36,7 +36,7 @@ jobs:
             cargo build --release -p tan-live
           fi
 
-      - name: Package
+      - name: Assemble dist folder
         shell: bash
         run: |
           mkdir -p dist
@@ -48,7 +48,19 @@ jobs:
             cp target/release/tan-live.exe dist/
           fi
           cp README.md ELI5.md LICENSE dist/
-          cd dist && zip -r "../tan-${{ matrix.name }}.zip" .
+
+      # Windows runners don't ship the `zip` CLI (that's Unix-only); use
+      # PowerShell's Compress-Archive there instead so every leg of the
+      # matrix can actually produce its artifact.
+      - name: Zip (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: Compress-Archive -Path dist/* -DestinationPath "tan-${{ matrix.name }}.zip"
+
+      - name: Zip (macOS/Linux)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: cd dist && zip -r "../tan-${{ matrix.name }}.zip" .
 
       - uses: actions/upload-artifact@v4
         with:
