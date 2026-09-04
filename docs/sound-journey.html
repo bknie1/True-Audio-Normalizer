@@ -306,9 +306,7 @@
       return el.offsetTop + el.offsetHeight / 2;
     }
 
-    let ticking = false;
     function update() {
-      ticking = false;
       const pos = window.scrollY + window.innerHeight / 2;
       let i = 0;
       while (i < anchors.length - 1 && center(anchors[i + 1].el) < pos) i++;
@@ -319,12 +317,19 @@
       bgLayer.style.setProperty("--glow", lerp(a.color, b.color, t));
     }
 
+    // A plain timer-based throttle rather than requestAnimationFrame: just
+    // as smooth for repainting a CSS variable, and doesn't depend on the
+    // tab actually being rendered/foregrounded to run.
+    let ticking = false;
     window.addEventListener(
       "scroll",
       () => {
         if (!ticking) {
           ticking = true;
-          requestAnimationFrame(update);
+          setTimeout(() => {
+            ticking = false;
+            update();
+          }, 16);
         }
       },
       { passive: true }
