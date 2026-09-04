@@ -46,7 +46,7 @@ fn main() {
     };
     println!(
         "capture: {} ({})",
-        capture_device.name().unwrap_or_else(|_| "?".into()),
+        capture_device,
         if loopback { "loopback" } else { "microphone" }
     );
 
@@ -54,20 +54,13 @@ fn main() {
         Some(name) => host
             .output_devices()
             .expect("failed to enumerate output devices")
-            .find(|d| {
-                d.name()
-                    .map(|n| n.to_lowercase().contains(&name.to_lowercase()))
-                    .unwrap_or(false)
-            })
+            .find(|d| d.to_string().to_lowercase().contains(&name.to_lowercase()))
             .unwrap_or_else(|| panic!("no output device matching '{name}'")),
         None => host
             .default_output_device()
             .expect("no default output device"),
     };
-    println!(
-        "playback: {}",
-        playback_device.name().unwrap_or_else(|_| "?".into())
-    );
+    println!("playback: {playback_device}");
 
     if loopback && output_name.is_none() {
         eprintln!(
@@ -81,7 +74,7 @@ fn main() {
         .default_input_config()
         .expect("capture device has no usable input config (on Windows, loopback needs the \
                  output device's format, which cpal exposes as its input config)");
-    let sample_rate = capture_config.sample_rate().0;
+    let sample_rate = capture_config.sample_rate();
     let channels = capture_config.channels() as usize;
     println!("format: {sample_rate} Hz, {channels} channel(s)");
 
@@ -91,7 +84,7 @@ fn main() {
     let ring_in = ring.clone();
     let input_stream = capture_device
         .build_input_stream(
-            &capture_config.into(),
+            capture_config.into(),
             move |data: &[f32], _| {
                 let mut buf = data.to_vec();
                 normalizer.process(&mut buf);
@@ -109,15 +102,15 @@ fn main() {
         )
         .expect("failed to build capture stream");
 
-    let playback_config: cpal::StreamConfig = cpal::StreamConfig {
+    let playback_config = cpal::StreamConfig {
         channels: channels as u16,
-        sample_rate: cpal::SampleRate(sample_rate),
+        sample_rate,
         buffer_size: cpal::BufferSize::Default,
     };
     let ring_out = ring.clone();
     let output_stream = playback_device
         .build_output_stream(
-            &playback_config,
+            playback_config,
             move |data: &mut [f32], _| {
                 let mut ring = ring_out.lock().unwrap();
                 for sample in data.iter_mut() {
@@ -148,11 +141,11 @@ fn flag_value(args: &[String], flag: &str) -> Option<String> {
 fn list_devices(host: &cpal::Host) {
     println!("input devices:");
     for d in host.input_devices().expect("failed to enumerate input devices") {
-        println!("  {}", d.name().unwrap_or_else(|_| "?".into()));
+        println!("  {d}");
     }
     println!("output devices:");
     for d in host.output_devices().expect("failed to enumerate output devices") {
-        println!("  {}", d.name().unwrap_or_else(|_| "?".into()));
+        println!("  {d}");
     }
     println!(
         "\nusage: tan-live [--loopback] [--output \"<device name>\"] [--profile movie|music]"
