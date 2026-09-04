@@ -177,6 +177,40 @@
   .song-opt:has(input:focus-visible) .tip { visibility: visible; opacity: 1; }
   .song-picker[data-tips-hidden] .tip { visibility: hidden; opacity: 0; }
   @media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
+  /* Seamless A/B compare player (shown after Run through TAN). Both the
+     original and processed audio share one Web Audio clock, so the toggle
+     crossfades instantly with no gap and no position jump. */
+  .cmp { margin-top: 0.6rem; }
+  .cmp-toggle {
+    display: inline-flex; padding: 3px; gap: 3px;
+    background: var(--card); border: 1px solid var(--edge); border-radius: 999px;
+  }
+  .cmp-seg {
+    border: none; background: transparent; color: var(--muted);
+    font: inherit; font-size: 0.85rem; font-weight: 600;
+    padding: 0.3rem 0.9rem; border-radius: 999px; cursor: pointer;
+  }
+  .cmp-seg[aria-pressed="true"] {
+    background: var(--accent-row, var(--accent)); color: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    .row.game .cmp-seg[aria-pressed="true"] { color: var(--bg); }
+  }
+  .cmp-seg:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .cmp-transport { display: flex; align-items: center; gap: 0.7rem; margin-top: 0.6rem; }
+  .cmp-play {
+    flex: none; width: 42px; height: 42px; border-radius: 50%;
+    border: none; background: var(--accent-row, var(--accent)); color: #fff;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    padding: 0;
+  }
+  @media (prefers-color-scheme: dark) {
+    .row.game .cmp-play { color: var(--bg); }
+  }
+  .cmp-play:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .cmp-play svg { width: 18px; height: 18px; display: block; }
+  .cmp-time { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
   #stop-all {
     position: fixed;
     right: 1.25rem;
@@ -322,13 +356,8 @@
     mono mix - decades before anyone normalized loudness at mastering time.
     This is the vintage-movie problem that started this whole project: the
     old stuff is exactly what modern gear handles worst.</p>
-    <div class="row-label">Original</div>
     <video controls preload="none" id="orig-movie" src="audio/samples/movie-notld-trailer.mp4"></video>
-    <div id="result-movie" hidden>
-      <div class="row-label">After TAN</div>
-      <video controls muted id="proc-movie"></video>
-      <p class="sync-note">Same picture, TAN-processed audio - synced via Web Audio, not a re-encoded file.</p>
-    </div>
+    <div id="result-movie" hidden></div>
     <canvas class="wave" id="wave-movie" width="600" height="90" hidden></canvas>
     <div class="wave-legend" id="wave-legend-movie" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - wherever the color pulls in from the gray is where TAN did its work</div>
     <div><button data-key="movie">Run through TAN</button></div>
@@ -505,30 +534,33 @@
   );
   document.querySelectorAll(".row").forEach((el) => rowObserver.observe(el));
 
-  // Starting any one player pauses every other audio/video on the page, so
-  // the four demo clips never overlap into a jumbled mess.
-  const allMedia = document.querySelectorAll("audio, video");
-  allMedia.forEach((el) => {
-    el.addEventListener("play", () => {
-      allMedia.forEach((other) => {
-        if (other !== el && !other.paused) other.pause();
-      });
+  // Starting any native player pauses every other native player AND every
+  // compare group, so the demos never overlap into a jumbled mess.
+  document.addEventListener("play", (e) => {
+    document.querySelectorAll("audio, video").forEach((other) => {
+      if (other !== e.target && !other.paused) other.pause();
     });
-  });
+    players.forEach((p) => p.pause());
+  }, true);
 
-  // Floating stop-all: appears whenever anything on the page is playing.
-  // Media events don't bubble, but they do pass document in capture phase.
+  // Floating stop-all: appears whenever anything on the page is playing,
+  // native or compare-group.
   (function () {
     const stopBtn = document.getElementById("stop-all");
     if (!stopBtn) return;
-    function refreshStopAll() {
-      stopBtn.hidden = ![...document.querySelectorAll("audio, video")].some((m) => !m.paused && !m.ended);
+    function anyPlaying() {
+      return [...document.querySelectorAll("audio, video")].some((m) => !m.paused && !m.ended) ||
+             players.some((p) => p.isPlaying());
     }
+    function refreshStopAll() { stopBtn.hidden = !anyPlaying(); }
     document.addEventListener("play", refreshStopAll, true);
     document.addEventListener("pause", refreshStopAll, true);
     document.addEventListener("ended", refreshStopAll, true);
+    // Compare players don't fire DOM media events; poll cheaply for them.
+    setInterval(refreshStopAll, 400);
     stopBtn.addEventListener("click", () => {
       document.querySelectorAll("audio, video").forEach((m) => m.pause());
+      players.forEach((p) => p.pause());
       refreshStopAll();
     });
   })();
@@ -550,10 +582,22 @@
     origMusic.pause();
     origMusic.src = `audio/samples/music-lehrer-${key}.mp3`;
     musicTitle.textContent = songTitles[key];
-    // The processed result and waveform belong to whichever track was last
-    // run through TAN - stale once the source track changes.
+
+    // The processed result belongs to whichever track was last run through
+    // TAN, so a new track tears the compare player down and restores the
+    // original-only player + Run button.
+    if (cardCompare.music) { cardCompare.music.destroy(); delete cardCompare.music; }
+    const canvas = document.getElementById("wave-music");
+    canvas.hidden = true;
+    delete canvas.dataset.tan;
+    delete canvas._seek;
+    origMusic.hidden = false;
+    const origLabel = origMusic.previousElementSibling;
+    if (origLabel && origLabel.classList.contains("row-label")) origLabel.hidden = false;
+    const runBtn = document.querySelector('button[data-key="music"]');
+    if (runBtn) { runBtn.hidden = false; runBtn.disabled = false; }
     document.getElementById("result-music").hidden = true;
-    document.getElementById("wave-music").hidden = true;
+    document.getElementById("result-music").innerHTML = "";
     document.getElementById("wave-legend-music").hidden = true;
     document.getElementById("status-music").textContent = "";
   }
@@ -571,6 +615,160 @@
   songPicker.addEventListener("focusin", () => songPicker.removeAttribute("data-tips-hidden"));
 
   const wasmBytesPromise = fetch("tan.wasm", { cache: "no-cache" }).then(r => r.arrayBuffer());
+
+  // One shared AudioContext for all decoding and playback. Browsers cap how
+  // many contexts can exist at once, and the old code made (and leaked) a
+  // fresh one per decode/run - which is why the Original waveform sometimes
+  // silently failed to draw once a few had piled up.
+  let sharedCtx = null;
+  function audioCtx() {
+    if (!sharedCtx || sharedCtx.state === "closed") sharedCtx = new AudioContext();
+    return sharedCtx;
+  }
+  async function decodeToInterleaved(url) {
+    const buf = await fetch(url).then((r) => r.arrayBuffer());
+    // decodeAudioData detaches its input; slice so callers can reuse bytes.
+    const dec = await audioCtx().decodeAudioData(buf.slice(0));
+    const inter = new Float32Array(dec.length * dec.numberOfChannels);
+    for (let ch = 0; ch < dec.numberOfChannels; ch++) {
+      const cd = dec.getChannelData(ch);
+      for (let i = 0; i < dec.length; i++) inter[i * dec.numberOfChannels + ch] = cd[i];
+    }
+    return { inter, channels: dec.numberOfChannels, sampleRate: dec.sampleRate, frames: dec.length };
+  }
+
+  // Registry of active players (compare groups + native media) so any one
+  // starting can pause the rest, and Stop-all can halt everything.
+  const players = [];
+  const cardCompare = {}; // key -> compare controller, for teardown on reset
+  function pauseOthers(except) {
+    players.forEach((p) => { if (p !== except && p.isPlaying()) p.pause(); });
+  }
+  function removePlayer(api) {
+    const i = players.indexOf(api);
+    if (i >= 0) players.splice(i, 1);
+  }
+
+  // Build an AudioBuffer from interleaved Float32 on the shared context.
+  function bufferFromInterleaved(inter, channels, sampleRate) {
+    const frames = inter.length / channels;
+    const b = audioCtx().createBuffer(channels, frames, sampleRate);
+    for (let ch = 0; ch < channels; ch++) {
+      const cd = b.getChannelData(ch);
+      for (let i = 0; i < frames; i++) cd[i] = inter[i * channels + ch];
+    }
+    return b;
+  }
+
+  const PLAY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z" fill="currentColor"/></svg>';
+  const PAUSE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>';
+
+  // Seamless A/B compare: two (or more) buffers on one clock, started
+  // together at the same offset; the toggle just crossfades gains, so
+  // switching is instant with no gap and no position change. Returns a
+  // controller the wave canvas uses as its scrubber.
+  function createCompare({ tracks, mount, canvas, accent }) {
+    const ctx = audioCtx();
+    const duration = tracks[0].buffer.duration;
+    const gains = tracks.map((t, i) => {
+      const g = ctx.createGain();
+      g.gain.value = i === 0 ? 1 : 0;
+      g.connect(ctx.destination);
+      return g;
+    });
+    let sources = null, startCtxTime = 0, offset = 0, playing = false, active = 0, destroyed = false;
+    const listeners = [];
+
+    const time = () => (playing ? Math.min(duration, offset + (ctx.currentTime - startCtxTime)) : offset);
+    function emit() { listeners.forEach((cb) => cb()); }
+    function stopSources() {
+      if (sources) { sources.forEach((s) => { try { s.stop(); } catch (e) {} s.disconnect(); }); sources = null; }
+    }
+    function startSources(at) {
+      stopSources();
+      startCtxTime = ctx.currentTime;
+      offset = at;
+      sources = tracks.map((t, i) => {
+        const s = ctx.createBufferSource();
+        s.buffer = t.buffer;
+        s.connect(gains[i]);
+        s.start(0, Math.max(0, Math.min(at, duration - 0.001)));
+        return s;
+      });
+      sources[active].onended = () => { if (playing && time() >= duration - 0.06) { stopSources(); playing = false; offset = 0; emit(); } };
+    }
+    const api = {
+      duration, isPlaying: () => playing, getTime: time,
+      play() {
+        if (playing) return;
+        pauseOthers(api);
+        document.querySelectorAll("audio, video").forEach((m) => { if (!m.paused) m.pause(); });
+        ctx.resume();
+        startSources(offset >= duration - 0.06 ? 0 : offset);
+        playing = true; emit();
+      },
+      pause() { if (!playing) return; offset = time(); stopSources(); playing = false; emit(); },
+      toggle() { api[playing ? "pause" : "play"](); },
+      seek(t) { t = Math.max(0, Math.min(duration, t)); if (playing) startSources(t); else offset = t; emit(); },
+      select(i) {
+        active = i;
+        const now = ctx.currentTime;
+        gains.forEach((g, gi) => {
+          g.gain.cancelScheduledValues(now);
+          g.gain.setValueAtTime(g.gain.value, now);
+          g.gain.linearRampToValueAtTime(gi === i ? 1 : 0, now + 0.02); // 20ms, click-free
+        });
+        if (sources) sources[active].onended = () => { if (playing && time() >= duration - 0.06) { stopSources(); playing = false; offset = 0; emit(); } };
+        segBtns.forEach((b, bi) => b.setAttribute("aria-pressed", bi === i ? "true" : "false"));
+      },
+      onChange(cb) { listeners.push(cb); },
+      destroy() {
+        api.pause();
+        destroyed = true;
+        removePlayer(api);
+        wrap.remove();
+      },
+    };
+    players.push(api);
+
+    // UI: segmented toggle + play/pause + time.
+    const wrap = document.createElement("div");
+    wrap.className = "cmp";
+    const toggle = document.createElement("div");
+    toggle.className = "cmp-toggle";
+    toggle.setAttribute("role", "group");
+    toggle.setAttribute("aria-label", "Compare original and processed audio");
+    const segBtns = tracks.map((t, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "cmp-seg"; b.textContent = t.label;
+      b.setAttribute("aria-pressed", i === 0 ? "true" : "false");
+      b.addEventListener("click", () => api.select(i));
+      toggle.appendChild(b);
+      return b;
+    });
+    const transport = document.createElement("div");
+    transport.className = "cmp-transport";
+    const playBtn = document.createElement("button");
+    playBtn.type = "button"; playBtn.className = "cmp-play";
+    playBtn.setAttribute("aria-label", "Play"); playBtn.innerHTML = PLAY_SVG;
+    playBtn.addEventListener("click", () => api.toggle());
+    const timeEl = document.createElement("span");
+    timeEl.className = "cmp-time";
+    transport.append(playBtn, timeEl);
+    wrap.append(toggle, transport);
+    mount.appendChild(wrap);
+
+    const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+    api.onChange(() => {
+      playBtn.innerHTML = playing ? PAUSE_SVG : PLAY_SVG;
+      playBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+      timeEl.textContent = `${fmt(time())} / ${fmt(duration)}`;
+    });
+    // rAF pump for smooth time/playhead while playing.
+    (function pump() { if (destroyed) return; if (playing) emit(); requestAnimationFrame(pump); })();
+    emit();
+    return api;
+  }
 
   function encodeWav(interleaved, sampleRate, channels) {
     const dataLen = interleaved.length * 2;
@@ -645,92 +843,105 @@
   // SoundCloud-style seeking: click the wave to jump there (and play), a
   // playhead tracks position. Seeks whichever player is currently going,
   // defaulting to the processed one.
-  function wireWaveSeek(canvas, origEl, procEl, color) {
+  // Turn the wave canvas into a scrubber for a controller (either a single
+  // <audio> element before Run through TAN, or the compare player after).
+  // The controller only needs getTime/duration/isPlaying/seek/onChange.
+  function wireWaveSeek(canvas, controller, color) {
     const snap = () => {
       const b = document.createElement("canvas");
-      b.width = canvas.width;
-      b.height = canvas.height;
+      b.width = canvas.width; b.height = canvas.height;
       b.getContext("2d").drawImage(canvas, 0, 0);
       return b;
     };
     // Re-wired after a redraw (original-only first, overlay after TAN):
-    // just refresh the base image, don't stack duplicate listeners.
+    // swap the base image and the controller, keep one set of listeners.
     if (canvas._seek) {
       canvas._seek.base = snap();
       canvas._seek.color = color;
+      canvas._seek.controller = controller;
+      controller.onChange(canvas._seek.paint);
+      canvas._seek.paint();
       return;
     }
-    const state = { base: snap(), color };
-    canvas._seek = state;
     const ctx = canvas.getContext("2d");
     canvas.style.cursor = "pointer";
-    const active = () =>
-      !procEl.paused ? procEl : !origEl.paused ? origEl : procEl.currentSrc ? procEl : origEl;
-    let rafId = null;
+    const state = { base: snap(), color, controller };
     function paint() {
-      const el = active();
+      const c = state.controller;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(state.base, 0, 0);
-      if (el.duration) {
-        const x = (el.currentTime / el.duration) * canvas.width;
+      const dur = c.duration || 0;
+      if (dur) {
+        const x = (c.getTime() / dur) * canvas.width;
         ctx.fillStyle = state.color;
-        ctx.globalAlpha = 0.14;
-        ctx.fillRect(0, 0, x, canvas.height);
-        ctx.globalAlpha = 0.9;
-        ctx.fillRect(x - 1, 0, 2, canvas.height);
+        ctx.globalAlpha = 0.14; ctx.fillRect(0, 0, x, canvas.height);
+        ctx.globalAlpha = 0.9; ctx.fillRect(x - 1, 0, 2, canvas.height);
         ctx.globalAlpha = 1;
       }
-      rafId = !procEl.paused || !origEl.paused ? requestAnimationFrame(paint) : null;
     }
-    ["play", "pause", "seeked", "ended", "timeupdate"].forEach((ev) => {
-      origEl.addEventListener(ev, () => { if (!rafId) paint(); });
-      procEl.addEventListener(ev, () => { if (!rafId) paint(); });
-    });
+    state.paint = paint;
+    canvas._seek = state;
+    controller.onChange(paint);
     canvas.addEventListener("click", (e) => {
       const rect = canvas.getBoundingClientRect();
       const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-      const el = active();
-      if (el.duration) el.currentTime = frac * el.duration;
-      el.play().catch(() => {});
-      if (!rafId) paint();
+      const c = state.controller;
+      c.seek(frac * (c.duration || 0));
+      if (!c.isPlaying()) c.play();
     });
+    paint();
+  }
+
+  // Adapter so a plain <audio> element satisfies the controller interface
+  // used above (before Run through TAN there's only the original).
+  function elementController(el) {
+    const listeners = [];
+    const emit = () => listeners.forEach((cb) => cb());
+    ["play", "pause", "seeked", "timeupdate", "ended", "loadedmetadata"].forEach((ev) =>
+      el.addEventListener(ev, emit)
+    );
+    (function pump() { if (!el.paused) emit(); requestAnimationFrame(pump); })();
+    return {
+      get duration() { return el.duration || 0; },
+      isPlaying: () => !el.paused,
+      getTime: () => el.currentTime,
+      play: () => el.play().catch(() => {}),
+      pause: () => el.pause(),
+      seek: (t) => { el.currentTime = t; },
+      onChange: (cb) => listeners.push(cb),
+    };
   }
 
   // The original's waveform appears on first play, before Run through TAN:
-  // decode whatever the Original player is pointing at and draw it solo in
-  // gray (the same gray it keeps in the after-TAN overlay), so the loud
-  // and quiet moments are visible and clickable up front.
-  ["music", "movie", "game", "podcast"].forEach((key) => {
+  // decode the Original source and draw it solo in gray, seekable, so the
+  // loud and quiet moments are visible up front. Uses the shared context,
+  // and redraws on song change; guarded so a slow decode can't get stuck.
+  ["music", "game", "podcast"].forEach((key) => {
     const origEl = document.getElementById(`orig-${key}`);
-    const procEl = document.getElementById(`proc-${key}`);
     const canvas = document.getElementById(`wave-${key}`);
-    if (!origEl || !procEl || !canvas) return;
-    let busy = false;
-    origEl.addEventListener("play", async () => {
-      if (!canvas.hidden || busy) return; // already showing something
+    if (!origEl || !canvas) return;
+    let drawnFor = null, busy = false;
+    async function drawOriginal() {
+      const src = origEl.currentSrc || origEl.src;
+      if (busy || drawnFor === src || canvas.dataset.tan === "1") return;
       busy = true;
       try {
-        const src = origEl.currentSrc || origEl.src;
-        const buf = await fetch(src).then((r) => r.arrayBuffer());
-        const actx = new AudioContext();
-        const dec = await actx.decodeAudioData(buf);
-        actx.close();
-        const inter = new Float32Array(dec.length * dec.numberOfChannels);
-        for (let ch = 0; ch < dec.numberOfChannels; ch++) {
-          const cd = dec.getChannelData(ch);
-          for (let i = 0; i < dec.length; i++) inter[i * dec.numberOfChannels + ch] = cd[i];
-        }
-        // Bail if TAN drew its overlay meanwhile, or the song changed.
-        if (!canvas.hidden || (origEl.currentSrc || origEl.src) !== src) return;
-        drawWaveform(canvas, inter, null, dec.numberOfChannels, "#98968f");
+        const { inter, channels } = await decodeToInterleaved(src);
+        if (canvas.dataset.tan === "1" || (origEl.currentSrc || origEl.src) !== src) return;
+        drawWaveform(canvas, inter, null, channels, "#98968f");
         const rowColor = getComputedStyle(document.querySelector(`button[data-key="${key}"]`)).backgroundColor;
-        wireWaveSeek(canvas, origEl, procEl, rowColor);
+        wireWaveSeek(canvas, elementController(origEl), rowColor);
+        drawnFor = src;
       } catch (e) {
-        // Decorative; the players still work without it.
+        // Decorative; the native player still works without it.
       } finally {
         busy = false;
       }
-    });
+    }
+    origEl.addEventListener("play", drawOriginal);
+    origEl.addEventListener("loadeddata", drawOriginal);
+    // Reset when the song picker points the Original at a new track.
+    origEl.addEventListener("emptied", () => { drawnFor = null; });
   });
 
   document.querySelectorAll('button[data-key]:not([data-key="movie"])').forEach((btn) => {
@@ -738,137 +949,165 @@
       const key = btn.dataset.key;
       const status = document.getElementById(`status-${key}`);
       const origEl = document.getElementById(`orig-${key}`);
-      const procEl = document.getElementById(`proc-${key}`);
+      const result = document.getElementById(`result-${key}`);
+      const canvas = document.getElementById(`wave-${key}`);
       btn.disabled = true;
       try {
         status.textContent = "Fetching and decoding...";
-        const resp = await fetch(origEl.currentSrc || origEl.src);
-        const arrayBuf = await resp.arrayBuffer();
-        const ctx = new AudioContext();
-        const decoded = await ctx.decodeAudioData(arrayBuf);
-        ctx.close();
-        const channels = decoded.numberOfChannels;
-        const frames = decoded.length;
+        const { inter, channels, sampleRate, frames } = await decodeToInterleaved(origEl.currentSrc || origEl.src);
 
         status.textContent = "Running TAN two-pass...";
         const { instance } = await WebAssembly.instantiate(await wasmBytesPromise, {});
         const wasm = instance.exports;
         const len = frames * channels;
         const ptr = wasm.tan_alloc(len);
-        let mem = new Float32Array(wasm.memory.buffer, ptr, len);
-        for (let ch = 0; ch < channels; ch++) {
-          const data = decoded.getChannelData(ch);
-          for (let i = 0; i < frames; i++) mem[i * channels + ch] = data[i];
-        }
-        const originalSnapshot = mem.slice(); // tan_normalize_offline mutates in place
-        wasm.tan_normalize_offline(ptr, len, decoded.sampleRate, channels, 0);
-        mem = new Float32Array(wasm.memory.buffer, ptr, len);
+        let heap = new Float32Array(wasm.memory.buffer, ptr, len);
+        heap.set(inter);
+        wasm.tan_normalize_offline(ptr, len, sampleRate, channels, 0);
+        heap = new Float32Array(wasm.memory.buffer, ptr, len);
+        const processed = heap.slice(); // copy out before the buffer detaches
 
-        status.textContent = "Encoding...";
-        const blob = encodeWav(mem, decoded.sampleRate, channels);
-        procEl.src = URL.createObjectURL(blob);
-        document.getElementById(`result-${key}`).hidden = false;
+        status.textContent = "Building comparison...";
         const rowColor = getComputedStyle(btn).backgroundColor;
-        const waveCanvas = document.getElementById(`wave-${key}`);
-        drawWaveform(waveCanvas, originalSnapshot, mem, channels, rowColor);
-        wireWaveSeek(waveCanvas, origEl, procEl, rowColor);
+        drawWaveform(canvas, inter, processed, channels, rowColor);
+        canvas.dataset.tan = "1";
         document.getElementById(`wave-legend-${key}`).hidden = false;
-        procEl.play().catch(() => {});
+
+        // The native original player is replaced by the seamless A/B player.
+        origEl.pause();
+        origEl.hidden = true;
+        const origLabel = origEl.previousElementSibling;
+        if (origLabel && origLabel.classList.contains("row-label")) origLabel.hidden = true;
+        result.innerHTML = "";
+        result.hidden = false;
+
+        const cmp = createCompare({
+          tracks: [
+            { label: "Before", buffer: bufferFromInterleaved(inter, channels, sampleRate) },
+            { label: "After TAN", buffer: bufferFromInterleaved(processed, channels, sampleRate) },
+          ],
+          mount: result, canvas, accent: rowColor,
+        });
+        cardCompare[key] = cmp;
+        wireWaveSeek(canvas, cmp, rowColor);
+        cmp.select(1);   // land on After TAN
+        cmp.play();
         status.textContent = "";
+        btn.hidden = true; // one-shot; the compare player is the control now
       } catch (err) {
         status.textContent = "Couldn't process: " + err.message;
-      } finally {
         btn.disabled = false;
       }
     });
   });
 
-  // ---- Movie: special-cased because we already download the whole video
-  // to extract its audio, so the picture is sitting right there too. Rather
-  // than re-encode a new video file (real work, no client-side muxer),
-  // "After TAN" is a second, muted <video> showing the same picture, with
-  // the processed audio played through Web Audio and kept in sync with its
-  // play/pause/seek - same trick as dubbing, not a new file. ----
+  // ---- Movie: one video carries the picture (muted); both the original
+  // and TAN-processed audio play through Web Audio, synced to the video's
+  // clock, and the Before/After toggle crossfades between them. No second
+  // video, no re-encode - and the two "experiences" share the video's
+  // position, so switching is seamless. ----
   (function () {
     const movieBtn = document.querySelector('button[data-key="movie"]');
     if (!movieBtn) return;
     movieBtn.addEventListener("click", async () => {
       const status = document.getElementById("status-movie");
-      const origEl = document.getElementById("orig-movie");
-      const procVideo = document.getElementById("proc-movie");
+      const video = document.getElementById("orig-movie");
+      const result = document.getElementById("result-movie");
+      const canvas = document.getElementById("wave-movie");
       movieBtn.disabled = true;
       try {
         status.textContent = "Fetching and decoding...";
-        const resp = await fetch(origEl.currentSrc || origEl.src);
-        const arrayBuf = await resp.arrayBuffer();
-        const videoBytesForProc = arrayBuf.slice(0); // decodeAudioData may transfer/detach the original
-        const ctx = new AudioContext();
-        const decoded = await ctx.decodeAudioData(arrayBuf);
-        ctx.close();
-        const channels = decoded.numberOfChannels;
-        const frames = decoded.length;
+        const { inter, channels, sampleRate, frames } = await decodeToInterleaved(video.currentSrc || video.src);
 
         status.textContent = "Running TAN two-pass...";
         const { instance } = await WebAssembly.instantiate(await wasmBytesPromise, {});
         const wasm = instance.exports;
         const len = frames * channels;
         const ptr = wasm.tan_alloc(len);
-        let mem = new Float32Array(wasm.memory.buffer, ptr, len);
-        for (let ch = 0; ch < channels; ch++) {
-          const data = decoded.getChannelData(ch);
-          for (let i = 0; i < frames; i++) mem[i * channels + ch] = data[i];
-        }
-        const originalSnapshot = mem.slice();
-        wasm.tan_normalize_offline(ptr, len, decoded.sampleRate, channels, 0);
-        mem = new Float32Array(wasm.memory.buffer, ptr, len);
+        let heap = new Float32Array(wasm.memory.buffer, ptr, len);
+        heap.set(inter);
+        wasm.tan_normalize_offline(ptr, len, sampleRate, channels, 0);
+        heap = new Float32Array(wasm.memory.buffer, ptr, len);
+        const processed = heap.slice();
 
-        status.textContent = "Preparing synced playback...";
-        const playCtx = new AudioContext();
-        const processedBuffer = playCtx.createBuffer(channels, frames, decoded.sampleRate);
-        for (let ch = 0; ch < channels; ch++) {
-          const channelData = processedBuffer.getChannelData(ch);
-          for (let i = 0; i < frames; i++) channelData[i] = mem[i * channels + ch];
-        }
-
-        let sourceNode = null;
-        function stopSource() {
-          if (sourceNode) {
-            try { sourceNode.stop(); } catch (e) {}
-            sourceNode.disconnect();
-            sourceNode = null;
-          }
-        }
-        function startSourceAt(offset) {
-          stopSource();
-          sourceNode = playCtx.createBufferSource();
-          sourceNode.buffer = processedBuffer;
-          sourceNode.connect(playCtx.destination);
-          sourceNode.start(0, Math.max(0, Math.min(offset, processedBuffer.duration - 0.01)));
-        }
-        procVideo.addEventListener("play", () => {
-          playCtx.resume();
-          startSourceAt(procVideo.currentTime);
-        });
-        procVideo.addEventListener("pause", stopSource);
-        procVideo.addEventListener("ended", stopSource);
-        procVideo.addEventListener("seeked", () => {
-          if (!procVideo.paused) startSourceAt(procVideo.currentTime);
-        });
-
-        status.textContent = "Encoding waveform preview...";
-        procVideo.src = URL.createObjectURL(new Blob([videoBytesForProc], { type: "video/mp4" }));
-        procVideo.muted = true; // belt and suspenders - the video's own audio must never play
-        document.getElementById("result-movie").hidden = false;
+        status.textContent = "Building comparison...";
         const rowColor = getComputedStyle(movieBtn).backgroundColor;
-        const waveCanvas = document.getElementById("wave-movie");
-        drawWaveform(waveCanvas, originalSnapshot, mem, channels, rowColor);
-        wireWaveSeek(waveCanvas, origEl, procVideo, rowColor);
+        drawWaveform(canvas, inter, processed, channels, rowColor);
+        canvas.dataset.tan = "1";
         document.getElementById("wave-legend-movie").hidden = false;
-        await procVideo.play().catch(() => {});
+
+        const ctx = audioCtx();
+        const buffers = [
+          bufferFromInterleaved(inter, channels, sampleRate),
+          bufferFromInterleaved(processed, channels, sampleRate),
+        ];
+        const gains = buffers.map((b, i) => {
+          const g = ctx.createGain();
+          g.gain.value = i === 1 ? 1 : 0; // default After TAN
+          g.connect(ctx.destination);
+          return g;
+        });
+        let active = 1, sources = null, startAt = 0, startCtxTime = 0;
+        function stopSources() {
+          if (sources) { sources.forEach((s) => { try { s.stop(); } catch (e) {} s.disconnect(); }); sources = null; }
+        }
+        function startSources(at) {
+          stopSources();
+          startAt = at; startCtxTime = ctx.currentTime;
+          sources = buffers.map((b, i) => {
+            const s = ctx.createBufferSource();
+            s.buffer = b; s.connect(gains[i]);
+            s.start(0, Math.max(0, Math.min(at, b.duration - 0.001)));
+            return s;
+          });
+        }
+        video.muted = true; // audio comes from Web Audio; never the video's own track
+        video.addEventListener("play", () => { ctx.resume(); startSources(video.currentTime); });
+        video.addEventListener("pause", stopSources);
+        video.addEventListener("ended", stopSources);
+        video.addEventListener("seeked", () => { if (!video.paused) startSources(video.currentTime); });
+        // Keep Web Audio locked to the video clock; correct any drift past
+        // a quarter second by silently restarting at the picture's position.
+        setInterval(() => {
+          if (video.paused || !sources) return;
+          const elapsed = startAt + (ctx.currentTime - startCtxTime);
+          if (Math.abs(elapsed - video.currentTime) > 0.25) startSources(video.currentTime);
+        }, 500);
+
+        // Before/After toggle (the video's own controls are the transport).
+        result.innerHTML = "";
+        const wrap = document.createElement("div");
+        wrap.className = "cmp";
+        const toggle = document.createElement("div");
+        toggle.className = "cmp-toggle";
+        toggle.setAttribute("role", "group");
+        toggle.setAttribute("aria-label", "Compare original and processed audio");
+        ["Before", "After TAN"].forEach((label, i) => {
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "cmp-seg"; b.textContent = label;
+          b.setAttribute("aria-pressed", i === 1 ? "true" : "false");
+          b.addEventListener("click", () => {
+            active = i;
+            const now = ctx.currentTime;
+            gains.forEach((g, gi) => {
+              g.gain.cancelScheduledValues(now);
+              g.gain.setValueAtTime(g.gain.value, now);
+              g.gain.linearRampToValueAtTime(gi === i ? 1 : 0, now + 0.02);
+            });
+            [...toggle.children].forEach((c, ci) => c.setAttribute("aria-pressed", ci === i ? "true" : "false"));
+          });
+          toggle.appendChild(b);
+        });
+        wrap.appendChild(toggle);
+        result.appendChild(wrap);
+        result.hidden = false;
+
+        wireWaveSeek(canvas, elementController(video), rowColor);
+        movieBtn.hidden = true;
+        video.play().catch(() => {});
         status.textContent = "";
       } catch (err) {
         status.textContent = "Couldn't process: " + err.message;
-      } finally {
         movieBtn.disabled = false;
       }
     });
