@@ -66,25 +66,11 @@
   .aur-red { background: radial-gradient(55% 70% at 50% 35%, color-mix(in srgb, #d1603a 55%, transparent) 0%, transparent 70%); }
   .aur-blue { background: radial-gradient(55% 70% at 45% 40%, color-mix(in srgb, #3d7ab5 55%, transparent) 0%, transparent 70%); }
   .aur-green { background: radial-gradient(55% 70% at 50% 38%, color-mix(in srgb, #3f9179 55%, transparent) 0%, transparent 70%); }
-  #hero-scene rect, #hero-scene .helper, #hero-scene .wave-arm {
+  #hero-scene rect {
     transform-box: fill-box;
-  }
-  /* Gentle idle loops only: the field breathes, the people bob and wave.
-     Everything freezes cleanly under prefers-reduced-motion. */
-  #hero-scene .bar { transform-origin: bottom; }
-  #hero-scene .helper-bob { animation: tan-bob 2.8s ease-in-out infinite; animation-delay: var(--d, 0s); }
-  #hero-scene .wave-arm { transform-origin: left bottom; animation: tan-wave 1.7s ease-in-out infinite; animation-delay: var(--d, 0s); }
-  #hero-scene .wave-arm-flip { transform-origin: right bottom; }
-  @keyframes tan-bob {
-    0%, 100% { transform: translateY(0); }
-    50%      { transform: translateY(var(--amp, -2.5px)); }
-  }
-  @keyframes tan-wave {
-    0%, 100% { transform: rotate(-10deg); }
-    50%      { transform: rotate(22deg); }
+    transform-origin: bottom;
   }
   @media (prefers-reduced-motion: reduce) {
-    #hero-scene .helper-bob, #hero-scene .wave-arm { animation: none; }
     .aur-green { opacity: 0.85; }
   }
   .hero-icon {
@@ -315,77 +301,12 @@
   </div>
   <svg id="hero-scene" aria-hidden="true" viewBox="0 0 900 320" preserveAspectRatio="xMidYMax slice">
     <!-- The bar field, generated into #wave-feed by the script at the
-         bottom of the page, with a tiny crew living on it: two green (mid)
-         people reaching down to a blue (low) person, and a green person
-         waving up at an orange (high) person, who waves back. People are
-         drawn at a local origin (feet at 0,0) and parked on their bars'
-         tops by the same script. The whole thing loops: bars sweep in
-         left to right, settle, hold, fade out, begin again. -->
+         bottom of the page. It loops: bars sweep in left to right, settle
+         into the comfortable band and breathe while the aurora walks
+         red -> blue -> calm green, then the wave fades out and it starts
+         again. -->
     <g class="scene-fade">
-    <g id="wave-feed"></g>
-
-    <!-- Blue person, arms up to the greens reaching down. -->
-    <g class="helper-slot" data-bar="5">
-      <g class="helper helper-bob" style="--amp:-2.5px" fill="#3d7ab5" stroke="#3d7ab5" stroke-linecap="round">
-        <line x1="-3" y1="-21" x2="-9" y2="-30" stroke-width="3"></line>
-        <line x1="3" y1="-21" x2="9" y2="-30" stroke-width="3"></line>
-        <rect x="-5" y="-24" width="10" height="15" rx="4"></rect>
-        <circle cx="0" cy="-29" r="5"></circle>
-        <line x1="0" y1="-10" x2="-4" y2="0" stroke-width="3.5"></line>
-        <line x1="0" y1="-10" x2="4" y2="0" stroke-width="3.5"></line>
-      </g>
-    </g>
-    <!-- The two greens reaching down to help. -->
-    <g class="helper-slot" data-bar="3">
-      <g class="helper helper-bob" style="--amp:2px; --d:-1.4s" fill="#3f9179" stroke="#3f9179" stroke-linecap="round">
-        <line x1="3" y1="-21" x2="13" y2="-12" stroke-width="3"></line>
-        <line x1="-3" y1="-21" x2="-10" y2="-15" stroke-width="3"></line>
-        <rect x="-5" y="-24" width="10" height="15" rx="4"></rect>
-        <circle cx="0" cy="-29" r="5"></circle>
-        <line x1="0" y1="-10" x2="-4" y2="0" stroke-width="3.5"></line>
-        <line x1="0" y1="-10" x2="4" y2="0" stroke-width="3.5"></line>
-      </g>
-    </g>
-    <g class="helper-slot" data-bar="8">
-      <g class="helper helper-bob" style="--amp:2px; --d:-1.4s" fill="#3f9179" stroke="#3f9179" stroke-linecap="round">
-        <line x1="-3" y1="-21" x2="-13" y2="-12" stroke-width="3"></line>
-        <line x1="3" y1="-21" x2="10" y2="-15" stroke-width="3"></line>
-        <rect x="-5" y="-24" width="10" height="15" rx="4"></rect>
-        <circle cx="0" cy="-29" r="5"></circle>
-        <line x1="0" y1="-10" x2="-4" y2="0" stroke-width="3.5"></line>
-        <line x1="0" y1="-10" x2="4" y2="0" stroke-width="3.5"></line>
-      </g>
-    </g>
-    <!-- Green waving up at the orange person next door. -->
-    <g class="helper-slot" data-bar="41">
-      <g class="helper helper-bob" style="--amp:-1.5px" fill="#3f9179" stroke="#3f9179" stroke-linecap="round">
-        <line x1="-3" y1="-21" x2="-8" y2="-14" stroke-width="3"></line>
-        <g transform="translate(3,-21)">
-          <g class="wave-arm">
-            <line x1="0" y1="0" x2="7" y2="-9" stroke-width="3"></line>
-          </g>
-        </g>
-        <rect x="-5" y="-24" width="10" height="15" rx="4"></rect>
-        <circle cx="0" cy="-29" r="5"></circle>
-        <line x1="0" y1="-10" x2="-4" y2="0" stroke-width="3.5"></line>
-        <line x1="0" y1="-10" x2="4" y2="0" stroke-width="3.5"></line>
-      </g>
-    </g>
-    <!-- Orange person up on the loud bar, waving back. -->
-    <g class="helper-slot" data-bar="42">
-      <g class="helper helper-bob" style="--amp:-1.5px; --d:-1.7s" fill="#d1603a" stroke="#d1603a" stroke-linecap="round">
-        <line x1="3" y1="-21" x2="8" y2="-14" stroke-width="3"></line>
-        <g transform="translate(-3,-21)">
-          <g class="wave-arm wave-arm-flip" style="--d:-0.8s">
-            <line x1="0" y1="0" x2="-7" y2="-8" stroke-width="3"></line>
-          </g>
-        </g>
-        <rect x="-5" y="-24" width="10" height="15" rx="4"></rect>
-        <circle cx="0" cy="-29" r="5"></circle>
-        <line x1="0" y1="-10" x2="-4" y2="0" stroke-width="3.5"></line>
-        <line x1="0" y1="-10" x2="4" y2="0" stroke-width="3.5"></line>
-      </g>
-    </g>
+      <g id="wave-feed"></g>
     </g>
   </svg>
   <img class="hero-icon" src="icon.svg" alt="TAN">
@@ -814,13 +735,12 @@
     })();
 
     // ---- Hero background: the bar field, stamped out once here (seeded,
-    // so the layout is stable across loads), with the tiny crew parked on
-    // top of their bars. One 14s story loop, driven by the Web Animations
-    // API so every bar can have its own offsets on a shared clock: bars
-    // sweep in left to right with a little overshoot, breathe while the
-    // aurora walks red -> blue -> calm green, then the whole wave fades
-    // out and it starts again. Reduced motion gets the settled shape and
-    // the calm green, no loop. ----
+    // so the layout is stable across loads). One 14s story loop, driven
+    // by the Web Animations API so every bar can have its own offsets on
+    // a shared clock: bars sweep in left to right with a little
+    // overshoot, breathe while the aurora walks red -> blue -> calm
+    // green, then the whole wave fades out and it starts again. Reduced
+    // motion gets the settled shape and the calm green, no loop. ----
     (function () {
       const feed = document.getElementById("wave-feed");
       if (!feed) return;
@@ -836,17 +756,17 @@
       };
       const COLOR = { high: "#d1603a", low: "#3d7ab5", mid: "#3f9179" };
       const ALPHA = { high: 0.7, low: 0.7, mid: 0.45 };
-      const tops = {};
       const inAt = (i) => 0.02 + (i / N) * 0.2; // the left-to-right sweep
       for (let i = 0; i < N; i++) {
         const role = i % 7 === 0 ? "high" : i % 5 === 0 ? "low" : "mid";
-        const frac = role === "high" ? 0.6 + rand() * 0.18 : role === "low" ? 0.24 + rand() * 0.12 : 0.38 + rand() * 0.14;
+        // Everything sits near the comfortable band; the roles only nudge
+        // it, so highs read as color, not towers.
+        const frac = role === "high" ? 0.44 + rand() * 0.12 : role === "low" ? 0.3 + rand() * 0.12 : 0.37 + rand() * 0.13;
         const h = frac * MAXH;
-        tops[i] = BASE - h;
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         rect.setAttribute("class", "bar");
         rect.setAttribute("x", (i * barW + barW * 0.18).toFixed(1));
-        rect.setAttribute("y", tops[i].toFixed(1));
+        rect.setAttribute("y", (BASE - h).toFixed(1));
         rect.setAttribute("width", (barW * 0.64).toFixed(1));
         rect.setAttribute("height", h.toFixed(1));
         rect.setAttribute("rx", 3);
@@ -868,24 +788,6 @@
           );
         }
       }
-      // Park each person on their bar's top edge; they fade in just after
-      // their bar arrives and ride the same clock.
-      document.querySelectorAll("#hero-scene .helper-slot").forEach((slot) => {
-        const i = Number(slot.dataset.bar);
-        const cx = i * barW + barW * 0.18 + (barW * 0.64) / 2;
-        slot.setAttribute("transform", `translate(${cx.toFixed(1)}, ${tops[i].toFixed(1)})`);
-        if (!reduce) {
-          slot.animate(
-            [
-              { opacity: 0, offset: 0 },
-              { opacity: 0, offset: inAt(i) + 0.05 },
-              { opacity: 1, offset: inAt(i) + 0.1 },
-              { opacity: 1, offset: 1 },
-            ],
-            LOOP
-          );
-        }
-      });
       if (reduce) return;
       // The wave's exit, and the aurora's walk through the palette.
       document.querySelector("#hero-scene .scene-fade").animate(
