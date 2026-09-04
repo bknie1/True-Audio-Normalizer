@@ -235,6 +235,17 @@
 </footer>
 
 <script>
+  // Starting any one player pauses every other audio/video on the page, so
+  // the four demo clips never overlap into a jumbled mess.
+  const allMedia = document.querySelectorAll("audio, video");
+  allMedia.forEach((el) => {
+    el.addEventListener("play", () => {
+      allMedia.forEach((other) => {
+        if (other !== el && !other.paused) other.pause();
+      });
+    });
+  });
+
   const wasmBytesPromise = fetch("tan.wasm", { cache: "no-cache" }).then(r => r.arrayBuffer());
 
   function encodeWav(interleaved, sampleRate, channels) {

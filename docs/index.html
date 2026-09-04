@@ -401,6 +401,17 @@
     // DOMContentLoaded because this script tag sits before the later zones
     // (How it works, Reproduce it, Roadmap) in the document.
     document.addEventListener("DOMContentLoaded", () => {
+      // Starting any one player pauses every other audio/video on the page,
+      // so demo clips never overlap into a jumbled mess.
+      const allMedia = document.querySelectorAll("audio, video");
+      allMedia.forEach((el) => {
+        el.addEventListener("play", () => {
+          allMedia.forEach((other) => {
+            if (other !== el && !other.paused) other.pause();
+          });
+        });
+      });
+
       const zoneObserver = new IntersectionObserver(
         (entries) => {
           for (const entry of entries) {
