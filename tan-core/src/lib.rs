@@ -24,6 +24,10 @@ pub struct Profile {
     /// How fast gain may rise (boosting quiet passages), dB per second.
     /// Kept slow so a dramatic hush is not yanked upward.
     pub rise_db_per_s: f32,
+    /// How fast gain may rise while still below neutral, i.e. recovering
+    /// from an earlier cut once the loud passage ends. Faster than boosting,
+    /// because returning to unity gain is low-risk.
+    pub recover_db_per_s: f32,
     /// How fast gain may fall (taming loud passages), dB per second.
     /// Faster, because a sudden explosion needs to come down quickly.
     pub fall_db_per_s: f32,
@@ -42,8 +46,9 @@ impl Profile {
             max_cut_db: 15.0,
             strength: 0.85,
             gate_db: -55.0,
-            rise_db_per_s: 10.0,
-            fall_db_per_s: 40.0,
+            rise_db_per_s: 14.0,
+            recover_db_per_s: 40.0,
+            fall_db_per_s: 60.0,
             ceiling: 0.891,
             lookahead_s: 0.008,
         }
@@ -58,7 +63,8 @@ impl Profile {
             strength: 0.4,
             gate_db: -55.0,
             rise_db_per_s: 3.0,
-            fall_db_per_s: 12.0,
+            recover_db_per_s: 10.0,
+            fall_db_per_s: 20.0,
             ceiling: 0.891,
             lookahead_s: 0.008,
         }
@@ -74,6 +80,7 @@ pub struct Normalizer {
     channels: usize,
     gain_db: f32,
     rise_per_frame: f32,
+    recover_per_frame: f32,
     fall_per_frame: f32,
 }
 
@@ -86,6 +93,7 @@ impl Normalizer {
             channels,
             gain_db: 0.0,
             rise_per_frame: profile.rise_db_per_s / sample_rate as f32,
+            recover_per_frame: profile.recover_db_per_s / sample_rate as f32,
             fall_per_frame: profile.fall_db_per_s / sample_rate as f32,
         }
     }
@@ -112,7 +120,12 @@ impl Normalizer {
                 let desired =
                     ((p.target_db - loudness) * p.strength).clamp(-p.max_cut_db, p.max_boost_db);
                 if desired > self.gain_db {
-                    self.gain_db = (self.gain_db + self.rise_per_frame).min(desired);
+                    let step = if self.gain_db < 0.0 {
+                        self.recover_per_frame
+                    } else {
+                        self.rise_per_frame
+                    };
+                    self.gain_db = (self.gain_db + step).min(desired);
                 } else {
                     self.gain_db = (self.gain_db - self.fall_per_frame).max(desired);
                 }
