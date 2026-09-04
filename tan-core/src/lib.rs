@@ -31,6 +31,13 @@ pub struct Profile {
     /// How fast gain may fall (taming loud passages), dB per second.
     /// Faster, because a sudden explosion needs to come down quickly.
     pub fall_db_per_s: f32,
+    /// Emergency ceiling on the fall rate. When output loudness overshoots
+    /// the target badly (a loud onset landing while gain is boosted), the
+    /// fall rate scales up toward this so the cut completes inside the
+    /// onset transient itself, where the ear can't track it. A cut that
+    /// finishes in ~50 ms reads as "that sound is loud", not "the volume
+    /// just dropped".
+    pub fast_fall_db_per_s: f32,
     /// Limiter ceiling (linear); 0.891 is about -1 dBFS.
     pub ceiling: f32,
     /// Limiter look-ahead in seconds. Also the processing latency.
@@ -49,6 +56,7 @@ impl Profile {
             rise_db_per_s: 14.0,
             recover_db_per_s: 40.0,
             fall_db_per_s: 60.0,
+            fast_fall_db_per_s: 600.0,
             ceiling: 0.891,
             lookahead_s: 0.008,
         }
@@ -65,6 +73,7 @@ impl Profile {
             rise_db_per_s: 3.0,
             recover_db_per_s: 10.0,
             fall_db_per_s: 20.0,
+            fast_fall_db_per_s: 20.0,
             ceiling: 0.891,
             lookahead_s: 0.008,
         }
@@ -82,6 +91,7 @@ pub struct Normalizer {
     rise_per_frame: f32,
     recover_per_frame: f32,
     fall_per_frame: f32,
+    fast_fall_ratio: f32,
 }
 
 impl Normalizer {
@@ -95,6 +105,7 @@ impl Normalizer {
             rise_per_frame: profile.rise_db_per_s / sample_rate as f32,
             recover_per_frame: profile.recover_db_per_s / sample_rate as f32,
             fall_per_frame: profile.fall_db_per_s / sample_rate as f32,
+            fast_fall_ratio: (profile.fast_fall_db_per_s / profile.fall_db_per_s).max(1.0),
         }
     }
 
@@ -127,7 +138,13 @@ impl Normalizer {
                     };
                     self.gain_db = (self.gain_db + step).min(desired);
                 } else {
-                    self.gain_db = (self.gain_db - self.fall_per_frame).max(desired);
+                    // How loud the *output* is right now relative to target.
+                    // The bigger the overshoot, the faster we cut, so large
+                    // corrections finish while the onset is still masking them
+                    // and small ones stay too slow to hear as pumping.
+                    let overshoot = loudness + self.gain_db - p.target_db;
+                    let urgency = (overshoot / 3.0).clamp(1.0, self.fast_fall_ratio);
+                    self.gain_db = (self.gain_db - self.fall_per_frame * urgency).max(desired);
                 }
             }
 
@@ -204,6 +221,37 @@ mod tests {
         n.process(&mut buf);
         let peak = buf.iter().fold(0.0f32, |a, x| a.max(x.abs()));
         assert!(peak <= 0.891 + 1e-4, "peak {peak} exceeded ceiling");
+    }
+
+    #[test]
+    fn loud_onset_is_tamed_before_the_ear_can_track_it() {
+        let sr = 48000;
+        let mut buf = Vec::new();
+        buf.extend(sine(0.02, 300.0, 2.0, sr)); // quiet: gain rides up to a boost
+        buf.extend(sine(0.6, 300.0, 2.0, sr)); // sudden loud onset
+        let mut n = Normalizer::new(sr, 1, Profile::movie());
+        n.process(&mut buf);
+
+        let onset = 2 * sr as usize;
+        // Loudness over a 150 ms window starting t_ms after the onset,
+        // measured with a fresh meter so earlier audio can't bleed in.
+        let window_at = |t_ms: usize| {
+            let mut meter = LoudnessMeter::new(sr, 1);
+            let start = onset + t_ms * sr as usize / 1000;
+            let end = start + 150 * sr as usize / 1000;
+            let mut db = f32::MIN;
+            for s in &buf[start..end] {
+                db = meter.process_frame(&[*s]);
+            }
+            db
+        };
+        let early = window_at(150);
+        let settled = window_at(1350);
+        assert!(
+            (early - settled).abs() < 3.0,
+            "150 ms after a loud onset the level should already be settled \
+             (no audible slide): early {early}, settled {settled}"
+        );
     }
 
     #[test]

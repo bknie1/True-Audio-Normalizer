@@ -94,15 +94,15 @@
 
   <div class="card">
     <h3>After TAN</h3>
-    <p>Same content, loudness range reduced to ~11 dB: dialogue audible, action still hits, peaks limited.</p>
+    <p>Same content, loudness range reduced to ~9 dB: dialogue audible, action still hits, peaks limited. Big cuts complete inside the onset transient itself, where the ear can't track them.</p>
     <audio controls preload="none" src="audio/demo-output.wav"></audio>
   </div>
 
   <table>
     <tr><th>K-weighted loudness</th><th>Before</th><th>After</th></tr>
-    <tr><td>Quiet passages</td><td>-30.9 dB</td><td>-27.9 dB</td></tr>
-    <tr><td>Loud passages</td><td>-6.6 dB</td><td>-17.1 dB</td></tr>
-    <tr><td>Loudness range</td><td>24.3 dB</td><td class="win">10.7 dB</td></tr>
+    <tr><td>Quiet passages</td><td>-30.9 dB</td><td>-28.0 dB</td></tr>
+    <tr><td>Loud passages</td><td>-6.6 dB</td><td>-19.0 dB</td></tr>
+    <tr><td>Loudness range</td><td>24.3 dB</td><td class="win">9.0 dB</td></tr>
     <tr><td>Peak</td><td>0.95</td><td>0.89 (limited)</td></tr>
   </table>
 
@@ -116,7 +116,9 @@
     <li><strong>Two-way gain riding</strong> - quiet dialogue is boosted toward a
     target, loud passages are pulled down, with separate speed limits per
     direction, fast recovery after cuts, and a gate so silence is never
-    amplified into hiss.</li>
+    amplified into hiss. Cut speed scales with overshoot, so a big correction
+    finishes within ~50 ms of a loud onset - masked by the onset itself -
+    while small corrections stay too slow to hear as pumping.</li>
     <li><strong>Look-ahead limiting</strong> - output is delayed 8 ms while the
     limiter watches incoming audio, so gain ramps down <em>before</em> a peak
     arrives instead of clicking after it.</li>
