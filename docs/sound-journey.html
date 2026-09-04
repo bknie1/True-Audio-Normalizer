@@ -59,8 +59,8 @@
     position: fixed;
     inset: -30vmax;
     z-index: -3;
-    background: radial-gradient(55% 55% at 50% 42%, var(--glow, transparent) 0%, transparent 70%);
-    filter: blur(110px);
+    background: radial-gradient(65% 65% at 50% 42%, var(--glow, transparent) 0%, transparent 78%);
+    filter: blur(85px) saturate(1.6);
     pointer-events: none;
   }
   .row:nth-child(even) .art { order: 2; }
@@ -283,7 +283,7 @@
     // A real, visible aurora - but it's a soft blurred glow over solid
     // black, not a flat fill, so this can run hotter than a flat wash
     // could while staying readable.
-    const PEAK_INTENSITY = 0.4;
+    const PEAK_INTENSITY = 0.65;
     const anchors = [
       { el: document.querySelector(".top"), color: neutral },
       ...rows.map((el) => {
