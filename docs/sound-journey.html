@@ -62,7 +62,9 @@
     transform: translateY(28px) scale(0.97);
     transition: opacity 0.65s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  .row.in { opacity: 1; transform: translateY(0) scale(1); }
+  /* "none" rather than an identity transform: Firefox has a history of
+     mis-hit-testing native media controls inside transformed subtrees. */
+  .row.in { opacity: 1; transform: none; }
 
   /* One page-sized glow, fixed to the viewport so it "follows" scrolling,
      oversized and heavily blurred so its edge is never visible. Its color
@@ -89,6 +91,11 @@
     background: radial-gradient(circle, color-mix(in srgb, var(--accent-row) 55%, transparent) 0%, transparent 68%);
     filter: blur(30px) saturate(1.4);
     z-index: 0;
+    /* Decorative only. Being positioned, this overhung ~100px into the
+       neighboring column and hit-tested ABOVE the (non-positioned) media
+       elements there - on art-left rows that dead zone sat exactly over
+       the players' play/pause buttons. */
+    pointer-events: none;
   }
   .row .art svg { position: relative; z-index: 1; width: 100%; max-width: 220px; height: auto; }
   .row h2 { margin: 0 0 0.4rem; font-size: 1.4rem; }
@@ -129,11 +136,12 @@
   }
   .song-opt { position: relative; }
 
+  /* Icon-only tiles by request; the full song title lives in each input's
+     aria-label and in the tooltip, which shows on hover AND keyboard focus. */
   .song-btn {
-    display: flex; flex-direction: column; align-items: center;
-    justify-content: center; gap: 0.3rem;
-    width: 76px; min-height: 64px;            /* > 44x44, SC 2.5.5 */
-    padding: 0.5rem 0.35rem;
+    display: flex; align-items: center; justify-content: center;
+    width: 48px; height: 48px;                /* >= 44x44, SC 2.5.5 */
+    padding: 0;
     background: var(--card);
     border: 1px solid var(--edge);
     border-radius: 10px;
@@ -143,17 +151,14 @@
   .song-btn input { position: absolute; width: 1px; height: 1px; margin: -1px;
                     overflow: hidden; clip: rect(0 0 0 0); }
   .song-btn .glyph { width: 22px; height: 22px; flex: none; }
-  .song-btn .song-label { font-size: 0.68rem; line-height: 1.15; text-align: center; }
 
   .song-btn:hover { color: var(--ink); border-color: var(--accent-row, var(--accent)); }
 
   .song-btn:has(input:checked) {
     color: var(--ink);
     border: 2px solid var(--accent-row, var(--accent));
-    padding: calc(0.5rem - 1px) calc(0.35rem - 1px);   /* keep the tile the same size */
     background: color-mix(in srgb, var(--accent-row, var(--accent)) 16%, var(--card));
   }
-  .song-btn:has(input:checked) .song-label { font-weight: 600; }
 
   .song-btn:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
 
@@ -172,6 +177,22 @@
   .song-opt:has(input:focus-visible) .tip { visibility: visible; opacity: 1; }
   .song-picker[data-tips-hidden] .tip { visibility: hidden; opacity: 0; }
   @media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
+  #stop-all {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 50;
+    background: var(--ink);
+    color: var(--bg);
+    border: none;
+    border-radius: 999px;
+    padding: 0.55rem 1.1rem;
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    box-shadow: 0 6px 20px -6px rgba(0, 0, 0, 0.35);
+  }
+  #stop-all[hidden] { display: none; }
   .credit { font-size: 0.76rem; color: var(--muted); margin-top: 0.75rem; }
   .credit a { color: inherit; }
   footer { max-width: 900px; margin: 0 auto; padding: 2rem 1.25rem 4rem; color: var(--muted); font-size: 0.85rem; }
@@ -218,52 +239,48 @@
 
       <div class="song-opt">
         <label class="song-btn">
-          <input type="radio" name="song" value="dope-peddler" checked aria-describedby="tip-dope-peddler" autocomplete="off">
+          <input type="radio" name="song" value="dope-peddler" checked aria-label="The Old Dope Peddler" aria-describedby="tip-dope-peddler" autocomplete="off">
           <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v18M8 7.5c0-1.5 1.5-2.5 4-2.5s4 1 4 2.5-1.5 2.5-4 2.5-4 1-4 2.5 1.5 2.5 4 2.5 4-1 4-2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span class="song-label">Dope Peddler</span>
         </label>
         <span class="tip" role="tooltip" id="tip-dope-peddler">The Old Dope Peddler</span>
       </div>
 
       <div class="song-opt">
         <label class="song-btn">
-          <input type="radio" name="song" value="fight-fiercely" aria-describedby="tip-fight-fiercely" autocomplete="off">
+          <input type="radio" name="song" value="fight-fiercely" aria-label="Fight Fiercely, Harvard" aria-describedby="tip-fight-fiercely" autocomplete="off">
           <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-          <span class="song-label">Fight Fiercely</span>
         </label>
         <span class="tip" role="tooltip" id="tip-fight-fiercely">Fight Fiercely, Harvard</span>
       </div>
 
       <div class="song-opt">
         <label class="song-btn">
-          <input type="radio" name="song" value="hunting-song" aria-describedby="tip-hunting-song" autocomplete="off">
+          <input type="radio" name="song" value="hunting-song" aria-label="The Hunting Song" aria-describedby="tip-hunting-song" autocomplete="off">
           <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
-          <span class="song-label">Hunting Song</span>
         </label>
         <span class="tip" role="tooltip" id="tip-hunting-song">The Hunting Song</span>
       </div>
 
       <div class="song-opt">
         <label class="song-btn">
-          <input type="radio" name="song" value="be-prepared" autocomplete="off">
+          <input type="radio" name="song" value="be-prepared" aria-label="Be Prepared" aria-describedby="tip-be-prepared" autocomplete="off">
           <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-          <span class="song-label">Be Prepared</span>
         </label>
+        <span class="tip" role="tooltip" id="tip-be-prepared">Be Prepared</span>
       </div>
 
       <div class="song-opt">
         <label class="song-btn">
-          <input type="radio" name="song" value="lobachevsky" autocomplete="off">
+          <input type="radio" name="song" value="lobachevsky" aria-label="Lobachevsky" aria-describedby="tip-lobachevsky" autocomplete="off">
           <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 5h12l-6.5 7L18 19H6l6.5-7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-          <span class="song-label">Lobachevsky</span>
         </label>
+        <span class="tip" role="tooltip" id="tip-lobachevsky">Lobachevsky</span>
       </div>
 
       <div class="song-opt">
         <label class="song-btn">
-          <input type="radio" name="song" value="hold-your-hand" aria-describedby="tip-hold-your-hand" autocomplete="off">
+          <input type="radio" name="song" value="hold-your-hand" aria-label="I Hold Your Hand in Mine" aria-describedby="tip-hold-your-hand" autocomplete="off">
           <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2C4.5 6.7 6.8 4.5 9.3 4.5c1.2 0 2.3.6 2.7 1.5.4-.9 1.5-1.5 2.7-1.5 2.5 0 4.8 2.2 4.8 5.3C19.5 15.4 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-          <span class="song-label">Hold Your Hand</span>
         </label>
         <span class="tip" role="tooltip" id="tip-hold-your-hand">I Hold Your Hand in Mine</span>
       </div>
@@ -306,7 +323,7 @@
     quiet parts and the loud parts were never meant to sit at the same
     volume, but your living room makes them.</p>
     <div class="row-label">Original</div>
-    <video controls preload="none" id="orig-movie" src="audio/samples/movie-caminandes.ogv"></video>
+    <video controls preload="none" id="orig-movie" src="audio/samples/movie-caminandes.mp4"></video>
     <div id="result-movie" hidden>
       <div class="row-label">After TAN</div>
       <video controls muted id="proc-movie"></video>
@@ -396,6 +413,8 @@
   above. Everything here runs client-side in WebAssembly; nothing is
   uploaded. <a href="index.html">Back to TAN</a>
 </footer>
+
+<button id="stop-all" hidden>Stop all audio</button>
 
 <script>
   // The whole-page background is one continuous color journey, not a stack
@@ -495,6 +514,23 @@
       });
     });
   });
+
+  // Floating stop-all: appears whenever anything on the page is playing.
+  // Media events don't bubble, but they do pass document in capture phase.
+  (function () {
+    const stopBtn = document.getElementById("stop-all");
+    if (!stopBtn) return;
+    function refreshStopAll() {
+      stopBtn.hidden = ![...document.querySelectorAll("audio, video")].some((m) => !m.paused && !m.ended);
+    }
+    document.addEventListener("play", refreshStopAll, true);
+    document.addEventListener("pause", refreshStopAll, true);
+    document.addEventListener("ended", refreshStopAll, true);
+    stopBtn.addEventListener("click", () => {
+      document.querySelectorAll("audio, video").forEach((m) => m.pause());
+      refreshStopAll();
+    });
+  })();
 
   // ---- Song picker: switch which Lehrer track "Original" points at ----
   const songTitles = {
@@ -720,7 +756,7 @@
         });
 
         status.textContent = "Encoding waveform preview...";
-        procVideo.src = URL.createObjectURL(new Blob([videoBytesForProc], { type: "video/ogg" }));
+        procVideo.src = URL.createObjectURL(new Blob([videoBytesForProc], { type: "video/mp4" }));
         procVideo.muted = true; // belt and suspenders - the video's own audio must never play
         document.getElementById("result-movie").hidden = false;
         const rowColor = getComputedStyle(movieBtn).backgroundColor;

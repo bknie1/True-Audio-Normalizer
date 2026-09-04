@@ -46,16 +46,39 @@
       var(--bg);
     border-bottom: 1px solid var(--edge);
   }
-  #hero-canvas {
+  #hero-scene {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     opacity: 0.5;
-    filter: blur(0.5px);
     pointer-events: none;
   }
-  .hero > *:not(#hero-canvas) { position: relative; z-index: 1; }
+  .hero > *:not(#hero-scene) { position: relative; z-index: 1; }
+  #hero-scene rect, #hero-scene .helper, #hero-scene .wave-arm {
+    transform-box: fill-box;
+  }
+  /* Gentle idle loops only: the field breathes, the people bob and wave.
+     Everything freezes cleanly under prefers-reduced-motion. */
+  #hero-scene .bar-sway { transform-origin: bottom; animation: tan-sway var(--dur, 4s) ease-in-out infinite; animation-delay: var(--d, 0s); }
+  #hero-scene .helper-bob { animation: tan-bob 2.8s ease-in-out infinite; animation-delay: var(--d, 0s); }
+  #hero-scene .wave-arm { transform-origin: left bottom; animation: tan-wave 1.7s ease-in-out infinite; animation-delay: var(--d, 0s); }
+  #hero-scene .wave-arm-flip { transform-origin: right bottom; }
+  @keyframes tan-sway {
+    0%, 100% { transform: scaleY(1); }
+    50%      { transform: scaleY(1.05); }
+  }
+  @keyframes tan-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(var(--amp, -2.5px)); }
+  }
+  @keyframes tan-wave {
+    0%, 100% { transform: rotate(-10deg); }
+    50%      { transform: rotate(22deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #hero-scene .bar-sway, #hero-scene .helper-bob, #hero-scene .wave-arm { animation: none; }
+  }
   .hero-icon {
     width: 88px;
     height: 88px;
@@ -131,7 +154,9 @@
        the next one starts popping in. */
     margin: 8vh 0;
   }
-  .zone.in, .feature-row.in { opacity: 1; transform: translateY(0) scale(1); }
+  /* "none" rather than an identity transform: Firefox has a history of
+     mis-hit-testing native media controls inside transformed subtrees. */
+  .zone.in, .feature-row.in { opacity: 1; transform: none; }
   .zone h2 {
     color: var(--zone);
     display: flex;
@@ -184,6 +209,22 @@
   .wave-legend { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
   .wave-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.3rem; }
   footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
+  #stop-all {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 50;
+    background: var(--ink);
+    color: var(--bg);
+    border: none;
+    border-radius: 999px;
+    padding: 0.55rem 1.1rem;
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+    box-shadow: 0 6px 20px -6px rgba(0, 0, 0, 0.35);
+  }
+  #stop-all[hidden] { display: none; }
 
   /* Interactive annotated waveform: click a zone to learn what TAN does there */
   .explainer {
@@ -257,7 +298,78 @@
 <body>
 <div id="bg-layer"></div>
 <div class="hero">
-  <canvas id="hero-canvas" aria-hidden="true"></canvas>
+  <svg id="hero-scene" aria-hidden="true" viewBox="0 0 900 320" preserveAspectRatio="xMidYMax slice">
+    <!-- The bar field, generated into #wave-feed by the script at the
+         bottom of the page, with a tiny crew living on it: two green (mid)
+         people reaching down to a blue (low) person, and a green person
+         waving up at an orange (high) person, who waves back. People are
+         drawn at a local origin (feet at 0,0) and parked on their bars'
+         tops by the same script; all motion is gentle CSS loops. -->
+    <g id="wave-feed"></g>
+
+    <!-- Blue person, arms up to the greens reaching down. -->
+    <g class="helper-slot" data-bar="5">
+      <g class="helper helper-bob" style="--amp:-2.5px" fill="#3d7ab5" stroke="#3d7ab5" stroke-linecap="round">
+        <line x1="-3" y1="-21" x2="-9" y2="-30" stroke-width="3"></line>
+        <line x1="3" y1="-21" x2="9" y2="-30" stroke-width="3"></line>
+        <rect x="-5" y="-24" width="10" height="15" rx="4"></rect>
+        <circle cx="0" cy="-29" r="5"></circle>
+        <line x1="0" y1="-10" x2="-4" y2="0" stroke-width="3.5"></line>
+        <line x1="0" y1="-10" x2="4" y2="0" stroke-width="3.5"></line>
+      </g>
+    </g>
+    <!-- The two greens reaching down to help. -->
+    <g class="helper-slot" data-bar="3">
+      <g class="helper helper-bob" style="--amp:2px; --d:-1.4s" fill="#3f9179" stroke="#3f9179" stroke-linecap="round">
+        <line x1="3" y1="-21" x2="13" y2="-12" stroke-width="3"></line>
+        <line x1="-3" y1="-21" x2="-10" y2="-15" stroke-width="3"></line>
+        <rect x="-5" y="-24" width="10" height="15" rx="4"></rect>
+        <circle cx="0" cy="-29" r="5"></circle>
+        <line x1="0" y1="-10" x2="-4" y2="0" stroke-width="3.5"></line>
+        <line x1="0" y1="-10" x2="4" y2="0" stroke-width="3.5"></line>
+      </g>
+    </g>
+    <g class="helper-slot" data-bar="8">
+      <g class="helper helper-bob" style="--amp:2px; --d:-1.4s" fill="#3f9179" stroke="#3f9179" stroke-linecap="round">
+        <line x1="-3" y1="-21" x2="-13" y2="-12" stroke-width="3"></line>
+        <line x1="3" y1="-21" x2="10" y2="-15" stroke-width="3"></line>
+        <rect x="-5" y="-24" width="10" height="15" rx="4"></rect>
+        <circle cx="0" cy="-29" r="5"></circle>
+        <line x1="0" y1="-10" x2="-4" y2="0" stroke-width="3.5"></line>
+        <line x1="0" y1="-10" x2="4" y2="0" stroke-width="3.5"></line>
+      </g>
+    </g>
+    <!-- Green waving up at the orange person next door. -->
+    <g class="helper-slot" data-bar="41">
+      <g class="helper helper-bob" style="--amp:-1.5px" fill="#3f9179" stroke="#3f9179" stroke-linecap="round">
+        <line x1="-3" y1="-21" x2="-8" y2="-14" stroke-width="3"></line>
+        <g transform="translate(3,-21)">
+          <g class="wave-arm">
+            <line x1="0" y1="0" x2="7" y2="-9" stroke-width="3"></line>
+          </g>
+        </g>
+        <rect x="-5" y="-24" width="10" height="15" rx="4"></rect>
+        <circle cx="0" cy="-29" r="5"></circle>
+        <line x1="0" y1="-10" x2="-4" y2="0" stroke-width="3.5"></line>
+        <line x1="0" y1="-10" x2="4" y2="0" stroke-width="3.5"></line>
+      </g>
+    </g>
+    <!-- Orange person up on the loud bar, waving back. -->
+    <g class="helper-slot" data-bar="42">
+      <g class="helper helper-bob" style="--amp:-1.5px; --d:-1.7s" fill="#d1603a" stroke="#d1603a" stroke-linecap="round">
+        <line x1="3" y1="-21" x2="8" y2="-14" stroke-width="3"></line>
+        <g transform="translate(-3,-21)">
+          <g class="wave-arm wave-arm-flip" style="--d:-0.8s">
+            <line x1="0" y1="0" x2="-7" y2="-8" stroke-width="3"></line>
+          </g>
+        </g>
+        <rect x="-5" y="-24" width="10" height="15" rx="4"></rect>
+        <circle cx="0" cy="-29" r="5"></circle>
+        <line x1="0" y1="-10" x2="-4" y2="0" stroke-width="3.5"></line>
+        <line x1="0" y1="-10" x2="4" y2="0" stroke-width="3.5"></line>
+      </g>
+    </g>
+  </svg>
   <img class="hero-icon" src="icon.svg" alt="TAN">
   <h1>TAN</h1>
   <p class="tagline">True Audio Normalizer - fixing poorly mixed sound in real time. Open source, no metadata cheats, no walled garden.</p>
@@ -550,175 +662,70 @@
       navigator.serviceWorker.register("sw.js").catch(() => {});
     }
 
-    // ---- Hero background: TAN's own job, animated. A field of bars drifts
-    // chaotic (some too loud, some too quiet) then visibly gets wrangled
-    // into a comfortable band - tall ones eased down, short ones lifted up,
-    // in slow motion, on a loop. A live canvas beats a baked video/webp
-    // here: a few KB of code instead of a media file, it re-tints itself
-    // for light/dark theme automatically, and never pixelates. Colors
-    // match the Lows/Highs explainer below for one consistent story. ----
+    // Floating stop-all: appears whenever anything on the page is playing.
+    // Media events don't bubble, but they do pass document in capture phase.
     (function () {
-      const canvas = document.getElementById("hero-canvas");
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      const hero = canvas.parentElement;
-      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const stopBtn = document.getElementById("stop-all");
+      if (!stopBtn) return;
+      function refreshStopAll() {
+        stopBtn.hidden = ![...document.querySelectorAll("audio, video")].some((m) => !m.paused && !m.ended);
+      }
+      document.addEventListener("play", refreshStopAll, true);
+      document.addEventListener("pause", refreshStopAll, true);
+      document.addEventListener("ended", refreshStopAll, true);
+      stopBtn.addEventListener("click", () => {
+        document.querySelectorAll("audio, video").forEach((m) => m.pause());
+        refreshStopAll();
+      });
+    })();
 
-      const HIGH_COLOR = "#d1603a";
-      const LOW_COLOR = "#3d7ab5";
-      const MID_COLOR = "#3f9179"; // the "people" doing the wrangling and lifting
-
-      // One bar per slot, each assigned a role up front (matches the
-      // explainer's lows/mids/highs split): highs run hot and tall in the
-      // "before" state, lows run quiet and short, mids barely move.
-      const N = 56;
+    // ---- Hero background: the bar field, stamped out once here (seeded,
+    // so the layout is stable across loads), with the tiny crew parked on
+    // top of their bars. Bars breathe and people bob/wave via gentle CSS
+    // loops; nothing here animates. The five story bars stay static so
+    // their people never drift off their perches. ----
+    (function () {
+      const feed = document.getElementById("wave-feed");
+      if (!feed) return;
+      const H = 320, W = 900;               // hero-scene viewBox
+      const BASE = H * 0.82, MAXH = H * 0.62, N = 56;
+      const barW = W / N;
       let seed = 11;
       const rand = () => {
         seed = (seed * 16807) % 2147483647;
         return seed / 2147483647;
       };
-      const bars = Array.from({ length: N }, (_, i) => {
+      const COLOR = { high: "#d1603a", low: "#3d7ab5", mid: "#3f9179" };
+      const ALPHA = { high: 0.7, low: 0.7, mid: 0.45 };
+      const STORY = [3, 5, 8, 41, 42];      // bars with people on them
+      const tops = {};
+      for (let i = 0; i < N; i++) {
         const role = i % 7 === 0 ? "high" : i % 5 === 0 ? "low" : "mid";
-        return {
-          role,
-          chaos: role === "high" ? 0.72 + rand() * 0.26 : role === "low" ? 0.06 + rand() * 0.1 : 0.32 + rand() * 0.16,
-          corrected: 0.4 + rand() * 0.14,
-          wobble: rand() * Math.PI * 2,
-        };
+        const frac = role === "high" ? 0.6 + rand() * 0.18 : role === "low" ? 0.24 + rand() * 0.12 : 0.38 + rand() * 0.14;
+        const h = frac * MAXH;
+        tops[i] = BASE - h;
+        const story = STORY.includes(i);
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("class", story ? "bar" : "bar bar-sway");
+        rect.setAttribute("x", (i * barW + barW * 0.18).toFixed(1));
+        rect.setAttribute("y", tops[i].toFixed(1));
+        rect.setAttribute("width", (barW * 0.64).toFixed(1));
+        rect.setAttribute("height", h.toFixed(1));
+        rect.setAttribute("rx", 3);
+        rect.setAttribute("fill", COLOR[role]);
+        rect.setAttribute("fill-opacity", ALPHA[role]);
+        if (!story) {
+          rect.style.setProperty("--d", (-rand() * 4).toFixed(2) + "s");
+          rect.style.setProperty("--dur", (3.2 + rand() * 1.8).toFixed(2) + "s");
+        }
+        feed.appendChild(rect);
+      }
+      // Park each person on their bar's top edge.
+      document.querySelectorAll("#hero-scene .helper-slot").forEach((slot) => {
+        const i = Number(slot.dataset.bar);
+        const cx = i * barW + barW * 0.18 + (barW * 0.64) / 2;
+        slot.setAttribute("transform", `translate(${cx.toFixed(1)}, ${tops[i].toFixed(1)})`);
       });
-
-      // Slow story cycle, in seconds: hold chaotic, ease to corrected
-      // (the wrangle/lift happens here), hold corrected, ease back.
-      const T_CHAOS = 2.6, T_TO_FIX = 2.4, T_HOLD = 2.8, T_TO_CHAOS = 2.2;
-      const CYCLE = T_CHAOS + T_TO_FIX + T_HOLD + T_TO_CHAOS;
-      function easeInOut(x) { return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; }
-
-      // Returns { amount: 0..1 (0=chaotic,1=corrected), moving: bool }
-      function cyclePhase(t) {
-        const p = t % CYCLE;
-        if (p < T_CHAOS) return { amount: 0, moving: false };
-        if (p < T_CHAOS + T_TO_FIX) return { amount: easeInOut((p - T_CHAOS) / T_TO_FIX), moving: true };
-        if (p < T_CHAOS + T_TO_FIX + T_HOLD) return { amount: 1, moving: false };
-        const p2 = (p - T_CHAOS - T_TO_FIX - T_HOLD) / T_TO_CHAOS;
-        return { amount: 1 - easeInOut(p2), moving: true };
-      }
-
-      let w = 0, h = 0, dpr = Math.min(window.devicePixelRatio || 1, 2), lastT = 0;
-      function resize() {
-        w = hero.clientWidth;
-        h = hero.clientHeight;
-        // Reassigning canvas.width/height clears the canvas per spec, so a
-        // resize firing after the reduced-motion single draw (no animation
-        // loop to repaint it) would otherwise leave it permanently blank.
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        draw(lastT);
-      }
-      resize();
-      window.addEventListener("resize", resize);
-
-      function draw(t) {
-        lastT = t;
-        const { amount, moving } = reduceMotion ? { amount: 1, moving: false } : cyclePhase(t);
-        ctx.clearRect(0, 0, w, h);
-
-        const baseline = h * 0.82;
-        const maxBarH = h * 0.62;
-        const barW = w / N;
-
-        // Stateless per-bar height, so a bar's current geometry can be
-        // recomputed on demand (needed below to find where a neighboring
-        // mid bar's top edge currently is) without draw-order dependencies.
-        function barGeom(bar, i) {
-          const frac = bar.chaos + (bar.corrected - bar.chaos) * amount;
-          const settle = reduceMotion ? 0 : Math.sin(t * 0.6 + bar.wobble) * 0.015 * (moving ? 0.4 : 1);
-          const barH = Math.max(2, (frac + settle) * maxBarH);
-          const x = i * barW + barW * 0.18;
-          const bw = barW * 0.64;
-          return { barH, x, bw, cx: x + bw / 2, top: baseline - barH };
-        }
-
-        // Pass 1: the bars themselves.
-        bars.forEach((bar, i) => {
-          const { barH, x, bw } = barGeom(bar, i);
-          let color = MID_COLOR, alpha = 0.3;
-          if (bar.role === "high") { color = HIGH_COLOR; alpha = moving ? 0.65 : 0.4; }
-          else if (bar.role === "low") { color = LOW_COLOR; alpha = moving ? 0.65 : 0.4; }
-
-          ctx.fillStyle = color;
-          ctx.globalAlpha = alpha;
-          const r = Math.min(bw / 2, 3);
-          ctx.beginPath();
-          ctx.roundRect(x, baseline - barH, bw, barH, r);
-          ctx.fill();
-        });
-
-        // Pass 2: while actively correcting, the nearest mid bar - the
-        // "person" doing the work - reaches a line over to whichever high
-        // or low bar it's currently wrangling down or lifting up, plus the
-        // chevron nudge cue on the bar itself.
-        if (moving) {
-          bars.forEach((bar, i) => {
-            if (bar.role !== "high" && bar.role !== "low") return;
-            const g = barGeom(bar, i);
-            const color = bar.role === "high" ? HIGH_COLOR : LOW_COLOR;
-            const nudge = Math.sin(t * 3 + bar.wobble) * 2;
-            const cy = bar.role === "high" ? g.top - 9 + nudge : g.top + 9 - nudge;
-
-            const midIdx = [i - 1, i + 1].find((j) => bars[j] && bars[j].role === "mid");
-            if (midIdx !== undefined) {
-              const m = barGeom(bars[midIdx], midIdx);
-              ctx.globalAlpha = 0.4;
-              ctx.strokeStyle = MID_COLOR;
-              ctx.lineWidth = 1.3;
-              ctx.lineCap = "round";
-              ctx.beginPath();
-              ctx.moveTo(m.cx, m.top - 4);
-              ctx.quadraticCurveTo((m.cx + g.cx) / 2, Math.min(m.top, cy) - 10, g.cx, cy);
-              ctx.stroke();
-            }
-
-            ctx.globalAlpha = 0.55;
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1.6;
-            ctx.lineCap = "round";
-            ctx.lineJoin = "round";
-            ctx.beginPath();
-            if (bar.role === "high") {
-              ctx.moveTo(g.cx - 4, cy - 3);
-              ctx.lineTo(g.cx, cy + 2);
-              ctx.lineTo(g.cx + 4, cy - 3);
-            } else {
-              ctx.moveTo(g.cx - 4, cy + 3);
-              ctx.lineTo(g.cx, cy - 2);
-              ctx.lineTo(g.cx + 4, cy + 3);
-            }
-            ctx.stroke();
-          });
-        }
-        ctx.globalAlpha = 1;
-      }
-
-      if (reduceMotion) {
-        draw(0);
-      } else {
-        let raf;
-        function frame(ts) {
-          draw(ts / 1000);
-          raf = requestAnimationFrame(frame);
-        }
-        raf = requestAnimationFrame(frame);
-        // Pause the loop when the tab isn't visible - no reason to animate
-        // a background nobody can see.
-        document.addEventListener("visibilitychange", () => {
-          if (document.hidden) {
-            cancelAnimationFrame(raf);
-          } else {
-            raf = requestAnimationFrame(frame);
-          }
-        });
-      }
     })();
 
     // ---- Illustrative explainer waveform: click a zone to learn about it ----
@@ -1007,5 +1014,7 @@ cargo run --release -p tan-cli -- process demo-input.wav demo-output.wav movie</
     · <a href="eli5.html">the no-jargon explanation</a>
   </footer>
 </main>
+
+<button id="stop-all" hidden>Stop all audio</button>
 </body>
 </html>
