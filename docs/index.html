@@ -27,7 +27,7 @@
     }
   }
   * { box-sizing: border-box; }
-  html { scroll-snap-type: y proximity; }
+  html { scroll-behavior: smooth; }
   body {
     margin: 0;
     background: var(--bg);
@@ -36,7 +36,6 @@
   }
   main { max-width: 780px; margin: 0 auto; padding: 0 1.25rem 5rem; }
   .hero {
-    scroll-snap-align: start;
     text-align: center;
     padding: 4rem 1.25rem 3rem;
     margin-bottom: 2.5rem;
@@ -91,8 +90,6 @@
   .milestones li { margin: 0.4rem 0; }
 
   .zone {
-    scroll-snap-align: start;
-    scroll-margin-top: 0;
     position: relative;
     min-height: 88vh;
     display: flex;
@@ -393,7 +390,7 @@
       navigator.serviceWorker.register("sw.js").catch(() => {});
     }
 
-    // Snap each section into place as it scrolls into view. Deferred to
+    // Reveal each section as it scrolls into view. Deferred to
     // DOMContentLoaded because this script tag sits before the later zones
     // (How it works, Reproduce it, Roadmap) in the document.
     document.addEventListener("DOMContentLoaded", () => {
@@ -409,6 +406,48 @@
         { threshold: 0.15 }
       );
       document.querySelectorAll(".zone").forEach((el) => zoneObserver.observe(el));
+
+      // Slide navigation: arrow keys and wheel/trackpad ticks both jump
+      // smoothly to the next/previous section, like paging through slides.
+      // A transition lock is the key to this not feeling janky - while one
+      // jump is still animating, further wheel ticks (trackpads fire many
+      // small ones per swipe) are ignored rather than queuing up more jumps.
+      const slides = [document.querySelector(".hero"), ...document.querySelectorAll(".zone")];
+      const isFormField = (el) => el && /^(input|textarea|select|button)$/i.test(el.tagName);
+      let transitioning = false;
+
+      function currentSlideIndex() {
+        const mid = window.scrollY + window.innerHeight / 2;
+        let current = 0;
+        for (let i = 0; i < slides.length; i++) {
+          if (slides[i].offsetTop <= mid) current = i;
+        }
+        return current;
+      }
+
+      function goToSlide(delta) {
+        const next = currentSlideIndex() + delta;
+        if (next < 0 || next >= slides.length) return;
+        transitioning = true;
+        slides[next].scrollIntoView({ behavior: "smooth", block: "start" });
+        // No native "scroll finished" event exists; approximate the smooth-
+        // scroll duration and release the lock afterward.
+        clearTimeout(goToSlide._t);
+        goToSlide._t = setTimeout(() => { transitioning = false; }, 700);
+      }
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+        if (isFormField(document.activeElement)) return;
+        e.preventDefault();
+        if (transitioning) return;
+        goToSlide(e.key === "ArrowDown" ? 1 : -1);
+      });
+
+      // Deliberately no wheel/trackpad hijacking: several sections (like
+      // "Hear it") are taller than one viewport, so jumping a full section
+      // per wheel tick would skip content still being read. Arrow keys are
+      // explicit intent and stay; ambient scrolling stays native.
     });
   </script>
 

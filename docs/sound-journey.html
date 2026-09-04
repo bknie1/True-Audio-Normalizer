@@ -27,175 +27,268 @@
     }
   }
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--ink);
     font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  main { max-width: 760px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
-  h1 { font-size: 2rem; margin: 0 0 0.5rem; letter-spacing: -0.02em; }
-  p.lead { color: var(--muted); margin: 0 0 2.5rem; }
-  a { color: var(--accent); }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--edge);
-    border-radius: 10px;
-    padding: 1.5rem;
-    margin: 1.25rem 0;
+  .top { max-width: 900px; margin: 0 auto; padding: 3rem 1.25rem 0; }
+  .top a.back { color: var(--muted); text-decoration: none; font-size: 0.9rem; }
+  .top a.back:hover { color: var(--accent); }
+  h1 { font-size: 2rem; margin: 1.5rem 0 0.5rem; letter-spacing: -0.02em; }
+  p.lead { color: var(--muted); max-width: 640px; margin: 0 0 3rem; }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    align-items: center;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 3.5rem 1.25rem;
+    border-top: 1px solid var(--edge);
   }
-  .card h2 { margin: 0 0 0.25rem; font-size: 1.15rem; }
-  .card .desc { color: var(--muted); font-size: 0.92rem; margin: 0 0 1rem; }
-  audio { width: 100%; margin: 0.4rem 0; }
-  .row-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0.75rem 0 0.2rem; }
+  .row:nth-child(even) .art { order: 2; }
+  .row .art {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .row .art svg { width: 100%; max-width: 220px; height: auto; }
+  .row h2 { margin: 0 0 0.4rem; font-size: 1.4rem; }
+  .row .challenge { color: var(--accent-row, var(--accent)); font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 0.6rem; }
+  .row p.desc { color: var(--muted); margin: 0 0 1.25rem; }
+  .row-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0.7rem 0 0.15rem; }
+  audio, video { width: 100%; margin: 0.2rem 0; }
   button {
-    background: var(--accent);
+    background: var(--accent-row, var(--accent));
     color: #fff;
     border: none;
     border-radius: 6px;
     padding: 0.5rem 1rem;
     font: inherit;
     cursor: pointer;
-    margin-top: 0.5rem;
+    margin-top: 0.6rem;
   }
   button:hover { filter: brightness(1.1); }
   button:disabled { opacity: 0.5; cursor: default; }
-  .status { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; min-height: 1.2em; }
-  .credit { font-size: 0.78rem; color: var(--muted); margin-top: 0.75rem; border-top: 1px solid var(--edge); padding-top: 0.6rem; }
-  .credit a { color: inherit; text-decoration: underline; }
-  footer { margin-top: 3rem; color: var(--muted); font-size: 0.85rem; }
+  .status { font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; min-height: 1.2em; }
+  .credit { font-size: 0.76rem; color: var(--muted); margin-top: 0.75rem; }
+  .credit a { color: inherit; }
+  footer { max-width: 900px; margin: 0 auto; padding: 2rem 1.25rem 4rem; color: var(--muted); font-size: 0.85rem; }
+  @media (max-width: 680px) {
+    .row { grid-template-columns: 1fr; gap: 1.5rem; padding: 2.5rem 1.25rem; }
+    .row:nth-child(even) .art { order: 0; }
+    .row .art svg { max-width: 140px; }
+  }
 </style>
 </head>
 <body>
-<main>
-  <p><a href="index.html">&larr; Back to TAN</a></p>
+<div class="top">
+  <a class="back" href="index.html">&larr; Back to TAN</a>
   <h1>Across every kind of content</h1>
-  <p class="lead">Four real recordings, four completely different mixing problems.
-  Nothing is preloaded or autoplayed - press "Run through TAN" on each to hear
-  the two-pass result for yourself, processed live in your browser.</p>
+  <p class="lead">Four real, licensed recordings, four completely different
+  mixing problems. Nothing is preloaded or autoplayed - press "Run through
+  TAN" on each to hear the two-pass result for yourself, processed live in
+  your browser.</p>
+</div>
 
-  <div class="card">
-    <h2>Music</h2>
-    <p class="desc">A 1953 studio recording: voice and piano, close-mic'd and dry.</p>
+<div class="row" style="--accent-row:#c98a2e">
+  <div class="art">
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="100" cy="100" r="95" fill="none" stroke="#c98a2e" stroke-width="3"/>
+      <circle cx="100" cy="100" r="6" fill="#c98a2e"/>
+      <circle cx="100" cy="100" r="30" fill="none" stroke="#c98a2e" stroke-width="2" opacity="0.5"/>
+      <circle cx="100" cy="100" r="55" fill="none" stroke="#c98a2e" stroke-width="2" opacity="0.3"/>
+      <line x1="100" y1="100" x2="150" y2="60" stroke="#c98a2e" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="150" cy="60" r="7" fill="#c98a2e"/>
+    </svg>
+  </div>
+  <div>
+    <div class="challenge">Music</div>
+    <h2>A comedian at a piano, 1953</h2>
+    <p class="desc">Just voice and piano, recorded dry and close-mic'd, no
+    post-production riding the fader. The dynamics are entirely
+    human - a whispered aside, then a belted punchline, on purpose, because
+    that's the joke. This is about as close to raw "as-performed" range as
+    a music recording gets.</p>
     <div class="row-label">Original</div>
     <audio controls preload="none" id="orig-music" src="audio/samples/music-lehrer.mp3"></audio>
     <div class="row-label">After TAN</div>
     <audio controls id="proc-music"></audio>
     <div><button data-key="music">Run through TAN</button></div>
     <div class="status" id="status-music"></div>
-    <div class="credit">"Songs By Tom Lehrer" (1953). Tom Lehrer released all rights to his recordings into the public domain.
+    <div class="credit">"Songs By Tom Lehrer" (1953). Tom Lehrer released all
+    rights to his recordings into the public domain.
     <a href="https://archive.org/details/songs-by-tom-lehrer_202509" target="_blank" rel="noopener">Source</a>.</div>
   </div>
+</div>
 
-  <div class="card">
-    <h2>Movie</h2>
-    <p class="desc">An animated short: dialogue, foley, and a full score mixed together.</p>
+<div class="row" style="--accent-row:#3f9179">
+  <div class="art">
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <rect x="30" y="45" width="140" height="100" rx="6" fill="none" stroke="#3f9179" stroke-width="3"/>
+      <rect x="30" y="30" width="140" height="20" rx="4" fill="none" stroke="#3f9179" stroke-width="3"/>
+      <line x1="48" y1="30" x2="38" y2="45" stroke="#3f9179" stroke-width="3"/>
+      <line x1="78" y1="30" x2="68" y2="45" stroke="#3f9179" stroke-width="3"/>
+      <line x1="108" y1="30" x2="98" y2="45" stroke="#3f9179" stroke-width="3"/>
+      <line x1="138" y1="30" x2="128" y2="45" stroke="#3f9179" stroke-width="3"/>
+      <line x1="168" y1="30" x2="158" y2="45" stroke="#3f9179" stroke-width="3"/>
+      <polygon points="88,75 88,115 122,95" fill="#3f9179"/>
+    </svg>
+  </div>
+  <div>
+    <div class="challenge">Movie</div>
+    <h2>An animated short, full mix</h2>
+    <p class="desc">Score, foley, and comedic sound effects all layered
+    together - falls, impacts, and swelling music cues sitting right next to
+    quiet character beats. This is the classic problem TAN exists for: the
+    quiet parts and the loud parts were never meant to sit at the same
+    volume, but your living room makes them.</p>
     <div class="row-label">Original</div>
-    <video controls preload="none" id="orig-movie" src="audio/samples/movie-caminandes.ogv" style="width:100%;border-radius:6px;"></video>
+    <video controls preload="none" id="orig-movie" src="audio/samples/movie-caminandes.ogv"></video>
     <div class="row-label">After TAN (audio)</div>
     <audio controls id="proc-movie"></audio>
     <div><button data-key="movie">Run through TAN</button></div>
     <div class="status" id="status-movie"></div>
-    <div class="credit">"Caminandes: Llama Drama" (2013), Blender Foundation, licensed CC BY 3.0.
+    <div class="credit">"Caminandes: Llama Drama" (2013), Blender Foundation,
+    licensed CC BY 3.0.
     <a href="https://archive.org/details/caminandes-1-llama-drama" target="_blank" rel="noopener">Source</a>.</div>
   </div>
+</div>
 
-  <div class="card">
-    <h2>Game</h2>
-    <p class="desc">An 8-bit battle theme: chiptune square waves, no natural dynamics to speak of.</p>
+<div class="row" style="--accent-row:#5661c4">
+  <div class="art">
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <rect x="35" y="80" width="130" height="60" rx="16" fill="none" stroke="#5661c4" stroke-width="3"/>
+      <circle cx="70" cy="110" r="9" fill="#5661c4"/>
+      <circle cx="130" cy="110" r="9" fill="#5661c4"/>
+      <rect x="95" y="96" width="10" height="10" fill="#5661c4"/>
+      <line x1="60" y1="65" x2="45" y2="80" stroke="#5661c4" stroke-width="3" stroke-linecap="round"/>
+      <line x1="140" y1="65" x2="155" y2="80" stroke="#5661c4" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div>
+    <div class="challenge">Game</div>
+    <h2>8-bit chiptune, synthesized</h2>
+    <p class="desc">Square waves generated by code, not performed by anyone -
+    there's almost no natural dynamic range here at all. This one is a
+    different kind of demo: it shows TAN <em>not</em> over-correcting.
+    Content that's already flat should come out basically untouched, and
+    that restraint is as important as the leveling itself.</p>
     <div class="row-label">Original</div>
     <audio controls preload="none" id="orig-game" src="audio/samples/game-8bit.wav"></audio>
     <div class="row-label">After TAN</div>
     <audio controls id="proc-game"></audio>
     <div><button data-key="game">Run through TAN</button></div>
     <div class="status" id="status-game"></div>
-    <div class="credit">"8 Bit Battle Theme" by celestialghost8, CC0 (public domain).
+    <div class="credit">"8 Bit Battle Theme" by celestialghost8, CC0 (public
+    domain).
     <a href="https://opengameart.org/content/8-bit-battle-theme-famitracker" target="_blank" rel="noopener">Source</a>.</div>
   </div>
+</div>
 
-  <div class="card">
-    <h2>Podcast / spoken word</h2>
-    <p class="desc">A real two-person radio interview - natural conversational volume swings, laughter, cross-talk.</p>
+<div class="row" style="--accent-row:#3d7ab5">
+  <div class="art">
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+      <rect x="85" y="30" width="30" height="60" rx="15" fill="none" stroke="#3d7ab5" stroke-width="3"/>
+      <path d="M60 85 a40 40 0 0 0 80 0" fill="none" stroke="#3d7ab5" stroke-width="3" stroke-linecap="round"/>
+      <line x1="100" y1="125" x2="100" y2="150" stroke="#3d7ab5" stroke-width="3"/>
+      <line x1="75" y1="150" x2="125" y2="150" stroke="#3d7ab5" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="150" cy="60" r="18" fill="none" stroke="#3d7ab5" stroke-width="2" opacity="0.5"/>
+    </svg>
+  </div>
+  <div>
+    <div class="challenge">Podcast / spoken word</div>
+    <h2>A real two-person interview</h2>
+    <p class="desc">Unscripted conversation, no post-production riding the
+    fader - one speaker leans into the mic, the other leans back, there's
+    laughter and cross-talk. Nobody was evening this out in real time, which
+    is exactly the kind of natural, human volume swing TAN is built to
+    smooth over.</p>
     <div class="row-label">Original</div>
     <audio controls preload="none" id="orig-podcast" src="audio/samples/podcast-interview.mp3"></audio>
     <div class="row-label">After TAN</div>
     <audio controls id="proc-podcast"></audio>
     <div><button data-key="podcast">Run through TAN</button></div>
     <div class="status" id="status-podcast"></div>
-    <div class="credit">Creative Commons Aotearoa New Zealand interview, Radio Active "Caffeine and Aspirin" (2013), CC BY 3.0 NZ.
+    <div class="credit">Creative Commons Aotearoa New Zealand interview,
+    Radio Active "Caffeine and Aspirin" (2013), CC BY 3.0 NZ.
     <a href="https://archive.org/details/CreativeCommonsInterviewRadioActive" target="_blank" rel="noopener">Source</a>.</div>
   </div>
+</div>
 
-  <footer>
-    All four sources are public domain or Creative Commons licensed, credited above.
-    Everything here runs client-side in WebAssembly; nothing is uploaded.
-    <a href="index.html">Back to TAN</a>
-  </footer>
+<footer>
+  All four sources are public domain or Creative Commons licensed, credited
+  above. Everything here runs client-side in WebAssembly; nothing is
+  uploaded. <a href="index.html">Back to TAN</a>
+</footer>
 
-  <script>
-    const wasmBytesPromise = fetch("tan.wasm", { cache: "no-cache" }).then(r => r.arrayBuffer());
+<script>
+  const wasmBytesPromise = fetch("tan.wasm", { cache: "no-cache" }).then(r => r.arrayBuffer());
 
-    function encodeWav(interleaved, sampleRate, channels) {
-      const dataLen = interleaved.length * 2;
-      const buf = new ArrayBuffer(44 + dataLen);
-      const v = new DataView(buf);
-      const str = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
-      str(0, "RIFF"); v.setUint32(4, 36 + dataLen, true); str(8, "WAVE");
-      str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
-      v.setUint16(22, channels, true); v.setUint32(24, sampleRate, true);
-      v.setUint32(28, sampleRate * channels * 2, true);
-      v.setUint16(32, channels * 2, true); v.setUint16(34, 16, true);
-      str(36, "data"); v.setUint32(40, dataLen, true);
-      for (let i = 0; i < interleaved.length; i++) {
-        const s = Math.max(-1, Math.min(1, interleaved[i]));
-        v.setInt16(44 + i * 2, s * 32767, true);
-      }
-      return new Blob([buf], { type: "audio/wav" });
+  function encodeWav(interleaved, sampleRate, channels) {
+    const dataLen = interleaved.length * 2;
+    const buf = new ArrayBuffer(44 + dataLen);
+    const v = new DataView(buf);
+    const str = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+    str(0, "RIFF"); v.setUint32(4, 36 + dataLen, true); str(8, "WAVE");
+    str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+    v.setUint16(22, channels, true); v.setUint32(24, sampleRate, true);
+    v.setUint32(28, sampleRate * channels * 2, true);
+    v.setUint16(32, channels * 2, true); v.setUint16(34, 16, true);
+    str(36, "data"); v.setUint32(40, dataLen, true);
+    for (let i = 0; i < interleaved.length; i++) {
+      const s = Math.max(-1, Math.min(1, interleaved[i]));
+      v.setInt16(44 + i * 2, s * 32767, true);
     }
+    return new Blob([buf], { type: "audio/wav" });
+  }
 
-    document.querySelectorAll("button[data-key]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const key = btn.dataset.key;
-        const status = document.getElementById(`status-${key}`);
-        const origEl = document.getElementById(`orig-${key}`);
-        const procEl = document.getElementById(`proc-${key}`);
-        btn.disabled = true;
-        try {
-          status.textContent = "Fetching and decoding...";
-          const resp = await fetch(origEl.currentSrc || origEl.src);
-          const arrayBuf = await resp.arrayBuffer();
-          const ctx = new AudioContext();
-          const decoded = await ctx.decodeAudioData(arrayBuf);
-          ctx.close();
-          const channels = decoded.numberOfChannels;
-          const frames = decoded.length;
+  document.querySelectorAll("button[data-key]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.key;
+      const status = document.getElementById(`status-${key}`);
+      const origEl = document.getElementById(`orig-${key}`);
+      const procEl = document.getElementById(`proc-${key}`);
+      btn.disabled = true;
+      try {
+        status.textContent = "Fetching and decoding...";
+        const resp = await fetch(origEl.currentSrc || origEl.src);
+        const arrayBuf = await resp.arrayBuffer();
+        const ctx = new AudioContext();
+        const decoded = await ctx.decodeAudioData(arrayBuf);
+        ctx.close();
+        const channels = decoded.numberOfChannels;
+        const frames = decoded.length;
 
-          status.textContent = "Running TAN two-pass...";
-          const { instance } = await WebAssembly.instantiate(await wasmBytesPromise, {});
-          const wasm = instance.exports;
-          const len = frames * channels;
-          const ptr = wasm.tan_alloc(len);
-          let mem = new Float32Array(wasm.memory.buffer, ptr, len);
-          for (let ch = 0; ch < channels; ch++) {
-            const data = decoded.getChannelData(ch);
-            for (let i = 0; i < frames; i++) mem[i * channels + ch] = data[i];
-          }
-          wasm.tan_normalize_offline(ptr, len, decoded.sampleRate, channels, 0);
-          mem = new Float32Array(wasm.memory.buffer, ptr, len);
-
-          status.textContent = "Encoding...";
-          const blob = encodeWav(mem, decoded.sampleRate, channels);
-          procEl.src = URL.createObjectURL(blob);
-          procEl.play().catch(() => {});
-          status.textContent = "Done.";
-        } catch (err) {
-          status.textContent = "Couldn't process: " + err.message;
-        } finally {
-          btn.disabled = false;
+        status.textContent = "Running TAN two-pass...";
+        const { instance } = await WebAssembly.instantiate(await wasmBytesPromise, {});
+        const wasm = instance.exports;
+        const len = frames * channels;
+        const ptr = wasm.tan_alloc(len);
+        let mem = new Float32Array(wasm.memory.buffer, ptr, len);
+        for (let ch = 0; ch < channels; ch++) {
+          const data = decoded.getChannelData(ch);
+          for (let i = 0; i < frames; i++) mem[i * channels + ch] = data[i];
         }
-      });
+        wasm.tan_normalize_offline(ptr, len, decoded.sampleRate, channels, 0);
+        mem = new Float32Array(wasm.memory.buffer, ptr, len);
+
+        status.textContent = "Encoding...";
+        const blob = encodeWav(mem, decoded.sampleRate, channels);
+        procEl.src = URL.createObjectURL(blob);
+        procEl.play().catch(() => {});
+        status.textContent = "Done.";
+      } catch (err) {
+        status.textContent = "Couldn't process: " + err.message;
+      } finally {
+        btn.disabled = false;
+      }
     });
-  </script>
-</main>
+  });
+</script>
 </body>
 </html>
