@@ -292,7 +292,7 @@
       <audio controls id="proc-music"></audio>
     </div>
     <canvas class="wave" id="wave-music" width="600" height="90" hidden></canvas>
-    <div class="wave-legend" id="wave-legend-music" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - the bright strip along the bottom is where TAN worked hardest</div>
+    <div class="wave-legend" id="wave-legend-music" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - wherever the color pulls in from the gray is where TAN did its work</div>
     <div><button data-key="music">Run through TAN</button></div>
     <div class="status" id="status-music"></div>
     <div class="credit">From "Songs by Tom Lehrer" (1966 recording). Tom Lehrer
@@ -330,7 +330,7 @@
       <p class="sync-note">Same picture, TAN-processed audio - synced via Web Audio, not a re-encoded file.</p>
     </div>
     <canvas class="wave" id="wave-movie" width="600" height="90" hidden></canvas>
-    <div class="wave-legend" id="wave-legend-movie" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - the bright strip along the bottom is where TAN worked hardest</div>
+    <div class="wave-legend" id="wave-legend-movie" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - wherever the color pulls in from the gray is where TAN did its work</div>
     <div><button data-key="movie">Run through TAN</button></div>
     <div class="status" id="status-movie"></div>
     <div class="credit">"Night of the Living Dead" (1968) theatrical trailer,
@@ -366,7 +366,7 @@
       <audio controls id="proc-game"></audio>
     </div>
     <canvas class="wave" id="wave-game" width="600" height="90" hidden></canvas>
-    <div class="wave-legend" id="wave-legend-game" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - the bright strip along the bottom is where TAN worked hardest</div>
+    <div class="wave-legend" id="wave-legend-game" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - wherever the color pulls in from the gray is where TAN did its work</div>
     <div><button data-key="game">Run through TAN</button></div>
     <div class="status" id="status-game"></div>
     <div class="credit">"8 Bit Battle Theme" by celestialghost8, CC0 (public
@@ -400,7 +400,7 @@
       <audio controls id="proc-podcast"></audio>
     </div>
     <canvas class="wave" id="wave-podcast" width="600" height="90" hidden></canvas>
-    <div class="wave-legend" id="wave-legend-podcast" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - the bright strip along the bottom is where TAN worked hardest</div>
+    <div class="wave-legend" id="wave-legend-podcast" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - wherever the color pulls in from the gray is where TAN did its work</div>
     <div><button data-key="podcast">Run through TAN</button></div>
     <div class="status" id="status-podcast"></div>
     <div class="credit">Creative Commons Aotearoa New Zealand interview,
@@ -636,29 +636,10 @@
       draw(envelope(original), color, 0.85);
       return;
     }
-    const envO = envelope(original);
-    const envP = envelope(processed);
-    draw(envO, "#98968f", 0.5);
-    draw(envP, color, 0.85);
-
-    // Heat strip along the bottom: how much TAN changed the amplitude in
-    // each column, so the biggest before/after moments are easy to find.
-    const diffs = new Float32Array(w);
-    let maxDiff = 0;
-    for (let x = 0; x < w; x++) {
-      diffs[x] = Math.abs((envP.maxs[x] - envP.mins[x]) - (envO.maxs[x] - envO.mins[x]));
-      if (diffs[x] > maxDiff) maxDiff = diffs[x];
-    }
-    if (maxDiff > 0) {
-      ctx.fillStyle = color;
-      for (let x = 0; x < w; x++) {
-        const t = diffs[x] / maxDiff;
-        if (t < 0.12) continue;
-        ctx.globalAlpha = 0.25 + 0.75 * t;
-        ctx.fillRect(x, h - 5, 1, 5);
-      }
-      ctx.globalAlpha = 1;
-    }
+    // Untouched input in gray, after-TAN in color, overlaid: wherever the
+    // color pulls in from the gray, that's where TAN acted.
+    draw(envelope(original), "#98968f", 0.5);
+    draw(envelope(processed), color, 0.85);
   }
 
   // SoundCloud-style seeking: click the wave to jump there (and play), a

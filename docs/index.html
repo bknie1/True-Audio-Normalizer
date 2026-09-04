@@ -369,7 +369,7 @@
     <audio controls preload="none" id="demo-two" src="audio/demo-output-twopass.wav"></audio>
     <canvas class="wave demo-wave" id="wave-demo-two" width="600" height="46" hidden></canvas>
   </div>
-  <p class="section-lead demo-wave-hint" hidden id="demo-wave-hint">Click a wave to jump around - gray is the untouched input, color is that player's audio, and the bright strip along the bottom is where TAN worked hardest.</p>
+  <p class="section-lead demo-wave-hint" hidden id="demo-wave-hint">Click a wave to jump around. Gray is the untouched input and color is that player's audio, so wherever the color pulls in from the gray is where TAN did its work.</p>
 
   <p class="section-lead">Loudness range - how far apart the quiet and loud parts sit:</p>
   <div class="stats">
@@ -485,7 +485,7 @@
         const fileWave = document.getElementById("file-wave");
         drawWaveform(fileWave, originalSnapshot, mem, channels, accent);
         wireWaveSeek(fileWave, document.getElementById("file-processed"), accent);
-        fileStatus.textContent = "Done - compare below. Click the wave to jump around; the bright strip along the bottom is where TAN worked hardest.";
+        fileStatus.textContent = "Done - compare below. Click the wave to jump around; wherever the color pulls in from the gray is where TAN did its work.";
       } catch (err) {
         fileStatus.textContent = "Couldn't process that file: " + err.message;
       }
@@ -554,30 +554,10 @@
         draw(envelope(original), color, 0.85);
         return;
       }
-      const envO = envelope(original);
-      const envP = envelope(processed);
-      draw(envO, "#98968f", 0.5);
-      draw(envP, color, 0.85);
-
-      // Heat strip along the bottom: how much TAN changed the amplitude
-      // in each column, so the biggest before/after moments are easy to
-      // find at a glance.
-      const diffs = new Float32Array(w);
-      let maxDiff = 0;
-      for (let x = 0; x < w; x++) {
-        diffs[x] = Math.abs((envP.maxs[x] - envP.mins[x]) - (envO.maxs[x] - envO.mins[x]));
-        if (diffs[x] > maxDiff) maxDiff = diffs[x];
-      }
-      if (maxDiff > 0) {
-        ctx.fillStyle = color;
-        for (let x = 0; x < w; x++) {
-          const t = diffs[x] / maxDiff;
-          if (t < 0.12) continue;
-          ctx.globalAlpha = 0.25 + 0.75 * t;
-          ctx.fillRect(x, h - 4, 1, 4);
-        }
-        ctx.globalAlpha = 1;
-      }
+      // Untouched input in gray, this player's audio in color, overlaid:
+      // wherever the color pulls in from the gray, that's where TAN acted.
+      draw(envelope(original), "#98968f", 0.5);
+      draw(envelope(processed), color, 0.85);
     }
 
     // SoundCloud-style seeking: click the wave to jump there (and play), a
