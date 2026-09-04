@@ -546,10 +546,13 @@
       navigator.serviceWorker.register("sw.js").catch(() => {});
     }
 
-    // ---- Hero background: flowing waveform lines, standing in for a video
-    // loop. A live canvas beats a baked video/webp here - it's a few KB of
-    // code instead of a media file, it re-tints itself for light/dark theme
-    // automatically, and it never looks pixelated at any screen size. ----
+    // ---- Hero background: TAN's own job, animated. A field of bars drifts
+    // chaotic (some too loud, some too quiet) then visibly gets wrangled
+    // into a comfortable band - tall ones eased down, short ones lifted up,
+    // in slow motion, on a loop. A live canvas beats a baked video/webp
+    // here: a few KB of code instead of a media file, it re-tints itself
+    // for light/dark theme automatically, and never pixelates. Colors
+    // match the Lows/Highs explainer below for one consistent story. ----
     (function () {
       const canvas = document.getElementById("hero-canvas");
       if (!canvas) return;
@@ -557,42 +560,114 @@
       const hero = canvas.parentElement;
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-      const lines = [
-        { amp: 22, freq: 0.012, speed: 0.35, phase: 0, yFrac: 0.3, width: 2.5, alpha: 0.5 },
-        { amp: 34, freq: 0.008, speed: -0.22, phase: 2, yFrac: 0.5, width: 3, alpha: 0.7 },
-        { amp: 18, freq: 0.016, speed: 0.28, phase: 4, yFrac: 0.7, width: 2, alpha: 0.4 },
-        { amp: 28, freq: 0.01, speed: -0.18, phase: 1, yFrac: 0.85, width: 2.5, alpha: 0.3 },
-      ];
+      const HIGH_COLOR = "#d1603a";
+      const LOW_COLOR = "#3d7ab5";
 
-      let w = 0, h = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // One bar per slot, each assigned a role up front (matches the
+      // explainer's lows/mids/highs split): highs run hot and tall in the
+      // "before" state, lows run quiet and short, mids barely move.
+      const N = 56;
+      let seed = 11;
+      const rand = () => {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647;
+      };
+      const bars = Array.from({ length: N }, (_, i) => {
+        const role = i % 7 === 0 ? "high" : i % 5 === 0 ? "low" : "mid";
+        return {
+          role,
+          chaos: role === "high" ? 0.72 + rand() * 0.26 : role === "low" ? 0.06 + rand() * 0.1 : 0.32 + rand() * 0.16,
+          corrected: 0.4 + rand() * 0.14,
+          wobble: rand() * Math.PI * 2,
+        };
+      });
+
+      // Slow story cycle, in seconds: hold chaotic, ease to corrected
+      // (the wrangle/lift happens here), hold corrected, ease back.
+      const T_CHAOS = 2.6, T_TO_FIX = 2.4, T_HOLD = 2.8, T_TO_CHAOS = 2.2;
+      const CYCLE = T_CHAOS + T_TO_FIX + T_HOLD + T_TO_CHAOS;
+      function easeInOut(x) { return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; }
+
+      // Returns { amount: 0..1 (0=chaotic,1=corrected), moving: bool }
+      function cyclePhase(t) {
+        const p = t % CYCLE;
+        if (p < T_CHAOS) return { amount: 0, moving: false };
+        if (p < T_CHAOS + T_TO_FIX) return { amount: easeInOut((p - T_CHAOS) / T_TO_FIX), moving: true };
+        if (p < T_CHAOS + T_TO_FIX + T_HOLD) return { amount: 1, moving: false };
+        const p2 = (p - T_CHAOS - T_TO_FIX - T_HOLD) / T_TO_CHAOS;
+        return { amount: 1 - easeInOut(p2), moving: true };
+      }
+
+      let w = 0, h = 0, dpr = Math.min(window.devicePixelRatio || 1, 2), lastT = 0;
       function resize() {
         w = hero.clientWidth;
         h = hero.clientHeight;
+        // Reassigning canvas.width/height clears the canvas per spec, so a
+        // resize firing after the reduced-motion single draw (no animation
+        // loop to repaint it) would otherwise leave it permanently blank.
         canvas.width = w * dpr;
         canvas.height = h * dpr;
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        draw(lastT);
       }
-      resize();
       window.addEventListener("resize", resize);
 
       function draw(t) {
-        const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+        lastT = t;
+        const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim();
+        const { amount, moving } = reduceMotion ? { amount: 1, moving: false } : cyclePhase(t);
         ctx.clearRect(0, 0, w, h);
-        for (const line of lines) {
-          const y0 = h * line.yFrac;
-          const drift = reduceMotion ? 0 : t * line.speed;
+
+        const baseline = h * 0.82;
+        const maxBarH = h * 0.62;
+        const barW = w / N;
+
+        bars.forEach((bar, i) => {
+          const frac = bar.chaos + (bar.corrected - bar.chaos) * amount;
+          const settle = reduceMotion ? 0 : Math.sin(t * 0.6 + bar.wobble) * 0.015 * (moving ? 0.4 : 1);
+          const barH = Math.max(2, (frac + settle) * maxBarH);
+          const x = i * barW + barW * 0.18;
+          const bw = barW * 0.64;
+
+          let color = ink;
+          let alpha = 0.28;
+          if (bar.role === "high") { color = HIGH_COLOR; alpha = moving ? 0.65 : 0.4; }
+          else if (bar.role === "low") { color = LOW_COLOR; alpha = moving ? 0.65 : 0.4; }
+
+          ctx.fillStyle = color;
+          ctx.globalAlpha = alpha;
+          const r = Math.min(bw / 2, 3);
           ctx.beginPath();
-          for (let x = 0; x <= w; x += 4) {
-            const y = y0 + Math.sin(x * line.freq + line.phase + drift) * line.amp;
-            if (x === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+          ctx.roundRect(x, baseline - barH, bw, barH, r);
+          ctx.fill();
+
+          // A small cue on the bars actively being wrangled/lifted right
+          // now: a chevron nudging down onto loud bars, up under quiet
+          // ones - visible only mid-transition, not during the holds.
+          if (moving && (bar.role === "high" || bar.role === "low")) {
+            const cx = x + bw / 2;
+            const nudge = Math.sin(t * 3 + bar.wobble) * 2;
+            ctx.globalAlpha = 0.55;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.6;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.beginPath();
+            if (bar.role === "high") {
+              const cy = baseline - barH - 9 + nudge;
+              ctx.moveTo(cx - 4, cy - 3);
+              ctx.lineTo(cx, cy + 2);
+              ctx.lineTo(cx + 4, cy - 3);
+            } else {
+              const cy = baseline - barH + 9 - nudge;
+              ctx.moveTo(cx - 4, cy + 3);
+              ctx.lineTo(cx, cy - 2);
+              ctx.lineTo(cx + 4, cy + 3);
+            }
+            ctx.stroke();
           }
-          ctx.strokeStyle = accent;
-          ctx.globalAlpha = line.alpha;
-          ctx.lineWidth = line.width;
-          ctx.lineCap = "round";
-          ctx.stroke();
-        }
+        });
+        ctx.globalAlpha = 1;
       }
 
       if (reduceMotion) {
