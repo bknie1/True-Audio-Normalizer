@@ -27,6 +27,7 @@
     }
   }
   * { box-sizing: border-box; }
+  html { scroll-snap-type: y proximity; }
   body {
     margin: 0;
     background: var(--bg);
@@ -35,6 +36,7 @@
   }
   main { max-width: 780px; margin: 0 auto; padding: 0 1.25rem 5rem; }
   .hero {
+    scroll-snap-align: start;
     text-align: center;
     padding: 4rem 1.25rem 3rem;
     margin-bottom: 2.5rem;
@@ -89,6 +91,8 @@
   .milestones li { margin: 0.4rem 0; }
 
   .zone {
+    scroll-snap-align: start;
+    scroll-margin-top: 0;
     position: relative;
     min-height: 88vh;
     display: flex;
