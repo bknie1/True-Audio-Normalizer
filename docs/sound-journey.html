@@ -116,8 +116,10 @@
     a music recording gets.</p>
     <div class="row-label">Original</div>
     <audio controls preload="none" id="orig-music" src="audio/samples/music-lehrer.mp3"></audio>
-    <div class="row-label">After TAN</div>
-    <audio controls id="proc-music"></audio>
+    <div id="result-music" hidden>
+      <div class="row-label">After TAN</div>
+      <audio controls id="proc-music"></audio>
+    </div>
     <div><button data-key="music">Run through TAN</button></div>
     <div class="status" id="status-music"></div>
     <div class="credit">"The Old Dope Peddler" (1966 recording). Tom Lehrer
@@ -149,8 +151,10 @@
     volume, but your living room makes them.</p>
     <div class="row-label">Original</div>
     <video controls preload="none" id="orig-movie" src="audio/samples/movie-caminandes.ogv"></video>
-    <div class="row-label">After TAN (audio)</div>
-    <audio controls id="proc-movie"></audio>
+    <div id="result-movie" hidden>
+      <div class="row-label">After TAN (audio)</div>
+      <audio controls id="proc-movie"></audio>
+    </div>
     <div><button data-key="movie">Run through TAN</button></div>
     <div class="status" id="status-movie"></div>
     <div class="credit">"Caminandes: Llama Drama" (2013), Blender Foundation,
@@ -180,8 +184,10 @@
     that restraint is as important as the leveling itself.</p>
     <div class="row-label">Original</div>
     <audio controls preload="none" id="orig-game" src="audio/samples/game-8bit.wav"></audio>
-    <div class="row-label">After TAN</div>
-    <audio controls id="proc-game"></audio>
+    <div id="result-game" hidden>
+      <div class="row-label">After TAN</div>
+      <audio controls id="proc-game"></audio>
+    </div>
     <div><button data-key="game">Run through TAN</button></div>
     <div class="status" id="status-game"></div>
     <div class="credit">"8 Bit Battle Theme" by celestialghost8, CC0 (public
@@ -210,8 +216,10 @@
     smooth over.</p>
     <div class="row-label">Original</div>
     <audio controls preload="none" id="orig-podcast" src="audio/samples/podcast-interview.mp3"></audio>
-    <div class="row-label">After TAN</div>
-    <audio controls id="proc-podcast"></audio>
+    <div id="result-podcast" hidden>
+      <div class="row-label">After TAN</div>
+      <audio controls id="proc-podcast"></audio>
+    </div>
     <div><button data-key="podcast">Run through TAN</button></div>
     <div class="status" id="status-podcast"></div>
     <div class="credit">Creative Commons Aotearoa New Zealand interview,
@@ -280,8 +288,9 @@
         status.textContent = "Encoding...";
         const blob = encodeWav(mem, decoded.sampleRate, channels);
         procEl.src = URL.createObjectURL(blob);
+        document.getElementById(`result-${key}`).hidden = false;
         procEl.play().catch(() => {});
-        status.textContent = "Done.";
+        status.textContent = "";
       } catch (err) {
         status.textContent = "Couldn't process: " + err.message;
       } finally {
