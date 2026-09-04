@@ -89,38 +89,33 @@
   }
   .milestones li { margin: 0.4rem 0; }
 
-  .zone {
+  /* One page-sized glow, fixed to the viewport so it "follows" scrolling,
+     oversized and heavily blurred so its edge is never visible. Its color
+     is repainted on scroll (see script) to shift hue between sections -
+     same system as the sound journey page, for one consistent identity. */
+  #bg-layer {
+    position: fixed;
+    inset: -30vmax;
+    z-index: -3;
+    background: radial-gradient(60% 60% at 50% 40%, var(--glow, transparent) 0%, transparent 76%);
+    filter: blur(90px) saturate(1.5);
+    pointer-events: none;
+  }
+
+  .zone, .feature-row {
     position: relative;
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+    transition: opacity 0.65s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .zone {
     min-height: 88vh;
     display: flex;
     flex-direction: column;
     justify-content: center;
     padding: 4rem 0;
-    opacity: 0;
-    transform: translateY(24px) scale(0.97);
-    transition: opacity 0.65s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1);
-    background: linear-gradient(
-      to bottom,
-      transparent 0%,
-      color-mix(in srgb, var(--zone) 9%, var(--bg)) 22%,
-      color-mix(in srgb, var(--zone) 9%, var(--bg)) 78%,
-      transparent 100%
-    );
   }
-  .zone.in { opacity: 1; transform: translateY(0) scale(1); }
-  .zone::before {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 140%;
-    height: 85%;
-    transform: translate(-50%, -50%);
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--zone) 20%, transparent), transparent 70%);
-    filter: blur(10px);
-    z-index: -1;
-    pointer-events: none;
-  }
+  .zone.in, .feature-row.in { opacity: 1; transform: translateY(0) scale(1); }
   .zone h2 {
     color: var(--zone);
     display: flex;
@@ -173,9 +168,78 @@
   .wave-legend { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
   .wave-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.3rem; }
   footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
+
+  /* Interactive annotated waveform: click a zone to learn what TAN does there */
+  .explainer {
+    margin: 0 0 3rem;
+    padding: 1.75rem 1.5rem 1.5rem;
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 14px;
+  }
+  .explainer-lead { color: var(--muted); font-size: 0.9rem; margin: 0 0 1rem; }
+  .wave-diagram { position: relative; height: 140px; }
+  .wave-diagram svg { width: 100%; height: 100%; display: block; }
+  .wave-hit {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 33.333%;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+  }
+  .wave-hit:hover, .wave-hit:focus-visible { background: color-mix(in srgb, var(--zc) 10%, transparent); }
+  .wave-hit[data-zone="lows"] { left: 0; --zc: #3d7ab5; }
+  .wave-hit[data-zone="mids"] { left: 33.333%; --zc: #3f9179; }
+  .wave-hit[data-zone="highs"] { left: 66.666%; --zc: #d1603a; }
+  .wave-hit.active { background: color-mix(in srgb, var(--zc) 16%, transparent); }
+  .wave-labels {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 0.5rem;
+  }
+  .wave-labels span { color: var(--muted); transition: color 0.2s ease; }
+  .wave-labels span.active { color: var(--zc); }
+  .wave-labels span:nth-child(1) { --zc: #3d7ab5; }
+  .wave-labels span:nth-child(2) { --zc: #3f9179; }
+  .wave-labels span:nth-child(3) { --zc: #d1603a; }
+  .wave-info {
+    margin-top: 1.1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--edge);
+    font-size: 0.92rem;
+  }
+  .wave-info strong { color: var(--zc, var(--ink)); }
+
+  .feature-row {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 1.5rem;
+    align-items: center;
+    padding: 1.5rem 0;
+  }
+  .feature-row:nth-child(even) { grid-template-columns: 1fr 120px; }
+  .feature-row:nth-child(even) .feature-icon { order: 2; }
+  .feature-icon { display: flex; align-items: center; justify-content: center; }
+  .feature-icon svg { width: 84px; height: 84px; }
+  .feature-row h3 { margin: 0 0 0.4rem; color: var(--fc, var(--ink)); }
+  .feature-row p { color: var(--muted); margin: 0; font-size: 0.94rem; }
+  @media (max-width: 560px) {
+    .feature-row, .feature-row:nth-child(even) { grid-template-columns: 1fr; text-align: center; }
+    .feature-row:nth-child(even) .feature-icon { order: 0; }
+  }
 </style>
 </head>
 <body>
+<div id="bg-layer"></div>
 <div class="hero">
   <img class="hero-icon" src="icon.svg" alt="TAN">
   <h1>TAN</h1>
@@ -188,6 +252,26 @@
   then lock the fix inside licensed hardware. I hate walled gardens, so TAN does
   the job blind instead: it measures perceived loudness the way your ear does
   and rides gain in real time, and it's MIT licensed Rust you can actually read.</p>
+
+  <div class="explainer">
+    <p class="explainer-lead">One waveform, three problems. Click a section to see what TAN does there.</p>
+    <div class="wave-diagram">
+      <svg viewBox="0 0 800 140" preserveAspectRatio="none" id="explainer-svg" aria-hidden="true"></svg>
+      <button class="wave-hit" data-zone="lows" aria-label="Lows: quiet passages"></button>
+      <button class="wave-hit" data-zone="mids" aria-label="Mids: comfortable, steady content"></button>
+      <button class="wave-hit" data-zone="highs" aria-label="Highs: loud peaks"></button>
+    </div>
+    <div class="wave-labels">
+      <span data-zone="lows">Lows</span>
+      <span data-zone="mids">Mids</span>
+      <span data-zone="highs">Highs</span>
+    </div>
+    <div class="wave-info" id="wave-info">
+      <strong>Click a zone above</strong> - whisper-quiet dialogue, comfortable
+      steady levels, and loud action bursts each get handled completely
+      differently by the same engine.
+    </div>
+  </div>
 
   <section class="zone" style="--zone: #d1603a">
   <h2>Hear it</h2>
@@ -449,6 +533,123 @@
       navigator.serviceWorker.register("sw.js").catch(() => {});
     }
 
+    // ---- Illustrative explainer waveform: click a zone to learn about it ----
+    (function () {
+      const svg = document.getElementById("explainer-svg");
+      if (!svg) return;
+      const W = 800, H = 140, MID = H / 2;
+      const zoneOf = (i, n) => (i < n / 3 ? "lows" : i < (2 * n) / 3 ? "mids" : "highs");
+      const colors = { lows: "#3d7ab5", mids: "#3f9179", highs: "#d1603a" };
+      // Deterministic pseudo-random amplitude per zone: small and calm for
+      // lows, moderate for mids, big and spiky (with a couple of real
+      // peaks) for highs - illustrating the three problems, not real audio.
+      let seed = 7;
+      const rand = () => {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647;
+      };
+      const n = 70;
+      const barW = W / n;
+      for (let i = 0; i < n; i++) {
+        const zone = zoneOf(i, n);
+        let amp;
+        if (zone === "lows") amp = 6 + rand() * 10;
+        else if (zone === "mids") amp = 20 + rand() * 16;
+        else amp = 28 + rand() * 34 + (rand() > 0.75 ? rand() * 28 : 0);
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", i * barW + barW * 0.15);
+        rect.setAttribute("width", barW * 0.7);
+        rect.setAttribute("y", MID - amp);
+        rect.setAttribute("height", amp * 2);
+        rect.setAttribute("rx", barW * 0.3);
+        rect.setAttribute("fill", colors[zone]);
+        rect.setAttribute("opacity", "0.55");
+        rect.dataset.zone = zone;
+        svg.appendChild(rect);
+      }
+
+      const info = {
+        lows: "<strong>Quiet passages rise.</strong> Whisper-level dialogue is boosted toward the content's own baseline via the two-way gain rider - gradually, with a gate below the noise floor so silence is never dragged up into audible hiss.",
+        mids: "<strong>Comfortable levels are left alone.</strong> Content already near the baseline barely moves. Doing nothing here is exactly the point - TAN only acts where the mix actually needs help.",
+        highs: "<strong>Loud peaks get tamed before they hit.</strong> The look-ahead limiter ducks gain up to 8 ms ahead of a peak, and big corrections finish within ~50 ms of the onset - masked by the transient itself, so it never sounds like someone reached for the volume knob.",
+      };
+      const infoEl = document.getElementById("wave-info");
+      const hits = document.querySelectorAll(".wave-hit");
+      const labels = document.querySelectorAll(".wave-labels span");
+
+      function selectZone(zone) {
+        hits.forEach((h) => h.classList.toggle("active", h.dataset.zone === zone));
+        labels.forEach((l) => l.classList.toggle("active", l.dataset.zone === zone));
+        svg.querySelectorAll("rect").forEach((r) => {
+          r.setAttribute("opacity", r.dataset.zone === zone ? "1" : "0.3");
+        });
+        infoEl.style.setProperty("--zc", colors[zone]);
+        infoEl.innerHTML = info[zone];
+      }
+      hits.forEach((h) => h.addEventListener("click", () => selectZone(h.dataset.zone)));
+    })();
+
+    // ---- The whole-page background is one continuous color journey: a
+    // fixed full-viewport glow behind everything is repainted on scroll by
+    // interpolating between each section's accent color, based on actual
+    // element position (not fixed percentages), same system as the sound
+    // journey page. ----
+    (function () {
+      const bgLayer = document.getElementById("bg-layer");
+      const neutral = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+      const zones = [...document.querySelectorAll(".zone")];
+
+      function hexToRgb(hex) {
+        const n = parseInt(hex.replace("#", ""), 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      }
+      function lerp(a, b, t) {
+        const ca = hexToRgb(a), cb = hexToRgb(b);
+        const mix = ca.map((c, i) => Math.round(c + (cb[i] - c) * t));
+        return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
+      }
+
+      const PEAK_INTENSITY = 0.6;
+      const anchors = [
+        { el: document.querySelector(".hero"), color: neutral },
+        ...zones.map((el) => {
+          const accent = getComputedStyle(el).getPropertyValue("--zone").trim() || el.style.getPropertyValue("--zone");
+          return { el, color: lerp(neutral, accent, PEAK_INTENSITY) };
+        }),
+        { el: document.querySelector("footer"), color: neutral },
+      ];
+
+      function center(el) {
+        return el.offsetTop + el.offsetHeight / 2;
+      }
+
+      let ticking = false;
+      function update() {
+        ticking = false;
+        const pos = window.scrollY + window.innerHeight / 2;
+        let i = 0;
+        while (i < anchors.length - 1 && center(anchors[i + 1].el) < pos) i++;
+        const a = anchors[Math.max(0, i)];
+        const b = anchors[Math.min(anchors.length - 1, i + 1)];
+        const span = center(b.el) - center(a.el);
+        const t = span > 0 ? Math.min(1, Math.max(0, (pos - center(a.el)) / span)) : 0;
+        bgLayer.style.setProperty("--glow", lerp(a.color, b.color, t));
+      }
+
+      window.addEventListener(
+        "scroll",
+        () => {
+          if (!ticking) {
+            ticking = true;
+            requestAnimationFrame(update);
+          }
+        },
+        { passive: true }
+      );
+      window.addEventListener("resize", update);
+      update();
+    })();
+
     // Reveal each section as it scrolls into view. Deferred to
     // DOMContentLoaded because this script tag sits before the later zones
     // (How it works, Reproduce it, Roadmap) in the document.
@@ -475,7 +676,7 @@
         },
         { threshold: 0, rootMargin: "0px 0px -45% 0px" }
       );
-      document.querySelectorAll(".zone").forEach((el) => zoneObserver.observe(el));
+      document.querySelectorAll(".zone, .feature-row").forEach((el) => zoneObserver.observe(el));
 
       // Slide navigation: arrow keys and wheel/trackpad ticks both jump
       // smoothly to the next/previous section, like paging through slides.
@@ -525,24 +726,63 @@
   <h2>How it works</h2>
   <p>Three stages, all classical DSP, all in
   <a href="https://github.com/bknie1/True-Audio-Normalizer/tree/main/tan-core/src">tan-core</a>:</p>
-  <ol>
-    <li><strong>Perceptual loudness metering</strong> - ITU-R BS.1770 K-weighting
-    (shelf + high-pass biquads), so gain decisions track how loud things
-    <em>sound</em>, not raw sample amplitude.</li>
-    <li><strong>Baseline-anchored gain riding</strong> - the engine tracks the
-    content's own average loudness (following louder material quickly,
-    sinking toward quiet slowly, the way perception anchors on the prominent
-    level) and levels around <em>that</em>, never toward an absolute target -
-    so enabling TAN never changes how loud things feel overall. Quiet
-    dialogue is boosted toward the baseline and loud peaks pulled down to it,
-    with separate speed limits per direction and a gate so silence is never
-    amplified into hiss. Cut speed scales with overshoot, so a big correction
-    finishes within ~50 ms of a loud onset - masked by the onset itself -
-    while small corrections stay too slow to hear as pumping.</li>
-    <li><strong>Look-ahead limiting</strong> - output is delayed 8 ms while the
-    limiter watches incoming audio, so gain ramps down <em>before</em> a peak
-    arrives instead of clicking after it.</li>
-  </ol>
+
+  <div class="feature-row" style="--fc: #3f9179">
+    <div class="feature-icon">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <path d="M15 65 Q30 20 40 65 T65 65" fill="none" stroke="#3f9179" stroke-width="4" stroke-linecap="round"/>
+        <path d="M15 65 Q30 85 40 65 T65 65" fill="none" stroke="#3f9179" stroke-width="4" stroke-linecap="round" opacity="0.4"/>
+        <line x1="12" y1="80" x2="88" y2="80" stroke="#3f9179" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="78" cy="35" r="14" fill="none" stroke="#3f9179" stroke-width="4"/>
+        <line x1="88" y1="45" x2="95" y2="52" stroke="#3f9179" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div>
+      <h3>Perceptual loudness metering</h3>
+      <p>ITU-R BS.1770 K-weighting (shelf + high-pass biquads), so gain
+      decisions track how loud things <em>sound</em>, not raw sample
+      amplitude.</p>
+    </div>
+  </div>
+
+  <div class="feature-row" style="--fc: #3f9179">
+    <div class="feature-icon">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <line x1="20" y1="50" x2="80" y2="50" stroke="#3f9179" stroke-width="4" stroke-linecap="round"/>
+        <polygon points="50,20 38,44 62,44" fill="#3f9179"/>
+        <circle cx="22" cy="66" r="7" fill="#3f9179" opacity="0.5"/>
+        <circle cx="50" cy="72" r="7" fill="#3f9179"/>
+        <circle cx="78" cy="60" r="7" fill="#3f9179" opacity="0.8"/>
+      </svg>
+    </div>
+    <div>
+      <h3>Baseline-anchored gain riding</h3>
+      <p>The engine tracks the content's own average loudness (following
+      louder material quickly, sinking toward quiet slowly) and levels
+      around <em>that</em>, never an absolute target - so enabling TAN never
+      changes how loud things feel overall. Cut speed scales with overshoot,
+      so a big correction finishes within ~50 ms of a loud onset, masked by
+      the onset itself, while small corrections stay too slow to hear as
+      pumping.</p>
+    </div>
+  </div>
+
+  <div class="feature-row" style="--fc: #3f9179">
+    <div class="feature-icon">
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="50" cy="52" r="34" fill="none" stroke="#3f9179" stroke-width="4"/>
+        <line x1="50" y1="52" x2="50" y2="28" stroke="#3f9179" stroke-width="4" stroke-linecap="round"/>
+        <line x1="50" y1="52" x2="68" y2="60" stroke="#3f9179" stroke-width="4" stroke-linecap="round"/>
+        <path d="M14 52 A36 36 0 0 1 22 30" fill="none" stroke="#3f9179" stroke-width="3" stroke-linecap="round" opacity="0.4" stroke-dasharray="2 6"/>
+      </svg>
+    </div>
+    <div>
+      <h3>Look-ahead limiting</h3>
+      <p>Output is delayed 8 ms while the limiter watches incoming audio, so
+      gain ramps down <em>before</em> a peak arrives instead of clicking
+      after it.</p>
+    </div>
+  </div>
   </section>
 
   <section class="zone" style="--zone: #3d7ab5">
