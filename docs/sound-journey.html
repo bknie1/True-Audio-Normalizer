@@ -208,7 +208,10 @@
     .row.game .cmp-play { color: var(--bg); }
   }
   .cmp-play:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  .cmp-play svg { width: 18px; height: 18px; display: block; }
+  /* The icon must never be the pointer target: the play/pause glyph is
+     swapped in JS, and if a click's mousedown and mouseup land on two
+     different (recreated) SVGs, no click fires. Let clicks hit the button. */
+  .cmp-play svg { width: 18px; height: 18px; display: block; pointer-events: none; }
   .cmp-time { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 
   #stop-all {
@@ -759,9 +762,16 @@
     mount.appendChild(wrap);
 
     const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+    let iconState = null;
     api.onChange(() => {
-      playBtn.innerHTML = playing ? PAUSE_SVG : PLAY_SVG;
-      playBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+      // Only touch the icon markup when the state actually changes - the
+      // rAF pump fires this every frame, and rebuilding the SVG mid-click
+      // would swallow the click.
+      if (iconState !== playing) {
+        iconState = playing;
+        playBtn.innerHTML = playing ? PAUSE_SVG : PLAY_SVG;
+        playBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+      }
       timeEl.textContent = `${fmt(time())} / ${fmt(duration)}`;
     });
     // rAF pump for smooth time/playhead while playing.
