@@ -601,12 +601,16 @@
       const neutral = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
       const zones = [...document.querySelectorAll(".zone")];
 
-      function hexToRgb(hex) {
-        const n = parseInt(hex.replace("#", ""), 16);
+      // Accepts either "#rrggbb" or an already-stringified "rgb(r, g, b)"
+      // (anchor colors get lerp'd once at setup and are read back into
+      // lerp again in update(), so this must round-trip both formats).
+      function toRgb(color) {
+        if (color.startsWith("rgb")) return color.match(/\d+/g).map(Number);
+        const n = parseInt(color.replace("#", ""), 16);
         return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
       }
       function lerp(a, b, t) {
-        const ca = hexToRgb(a), cb = hexToRgb(b);
+        const ca = toRgb(a), cb = toRgb(b);
         const mix = ca.map((c, i) => Math.round(c + (cb[i] - c) * t));
         return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
       }
