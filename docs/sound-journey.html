@@ -75,6 +75,9 @@
   button:hover { filter: brightness(1.1); }
   button:disabled { opacity: 0.5; cursor: default; }
   .status { font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; min-height: 1.2em; }
+  canvas.wave { width: 100%; height: 90px; display: block; margin-top: 0.75rem; border-radius: 6px; background: color-mix(in srgb, var(--accent-row, var(--accent)) 6%, var(--card)); }
+  .wave-legend { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
+  .wave-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.3rem; }
   .credit { font-size: 0.76rem; color: var(--muted); margin-top: 0.75rem; }
   .credit a { color: inherit; }
   footer { max-width: 900px; margin: 0 auto; padding: 2rem 1.25rem 4rem; color: var(--muted); font-size: 0.85rem; }
@@ -120,6 +123,8 @@
       <div class="row-label">After TAN</div>
       <audio controls id="proc-music"></audio>
     </div>
+    <canvas class="wave" id="wave-music" width="600" height="90" hidden></canvas>
+    <div class="wave-legend" id="wave-legend-music" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN</div>
     <div><button data-key="music">Run through TAN</button></div>
     <div class="status" id="status-music"></div>
     <div class="credit">"The Old Dope Peddler" (1966 recording). Tom Lehrer
@@ -155,6 +160,8 @@
       <div class="row-label">After TAN (audio)</div>
       <audio controls id="proc-movie"></audio>
     </div>
+    <canvas class="wave" id="wave-movie" width="600" height="90" hidden></canvas>
+    <div class="wave-legend" id="wave-legend-movie" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN</div>
     <div><button data-key="movie">Run through TAN</button></div>
     <div class="status" id="status-movie"></div>
     <div class="credit">"Caminandes: Llama Drama" (2013), Blender Foundation,
@@ -188,6 +195,8 @@
       <div class="row-label">After TAN</div>
       <audio controls id="proc-game"></audio>
     </div>
+    <canvas class="wave" id="wave-game" width="600" height="90" hidden></canvas>
+    <div class="wave-legend" id="wave-legend-game" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN</div>
     <div><button data-key="game">Run through TAN</button></div>
     <div class="status" id="status-game"></div>
     <div class="credit">"8 Bit Battle Theme" by celestialghost8, CC0 (public
@@ -220,6 +229,8 @@
       <div class="row-label">After TAN</div>
       <audio controls id="proc-podcast"></audio>
     </div>
+    <canvas class="wave" id="wave-podcast" width="600" height="90" hidden></canvas>
+    <div class="wave-legend" id="wave-legend-podcast" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN</div>
     <div><button data-key="podcast">Run through TAN</button></div>
     <div class="status" id="status-podcast"></div>
     <div class="credit">Creative Commons Aotearoa New Zealand interview,
@@ -266,6 +277,52 @@
     return new Blob([buf], { type: "audio/wav" });
   }
 
+  // Draws the original (muted) and processed (accent-colored) envelopes
+  // overlaid on one canvas, so the leveling effect is visible at a glance:
+  // wherever the colored line pulls in from the gray one, TAN acted there.
+  function drawWaveform(canvas, original, processed, channels, color) {
+    canvas.hidden = false;
+    const w = canvas.width, h = canvas.height;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, w, h);
+    const frames = original.length / channels;
+    const step = Math.max(1, Math.floor(frames / w));
+
+    function envelope(samples) {
+      const mins = new Float32Array(w);
+      const maxs = new Float32Array(w);
+      for (let x = 0; x < w; x++) {
+        let mn = 0, mx = 0;
+        const start = x * step;
+        for (let i = 0; i < step; i++) {
+          const frame = start + i;
+          if (frame >= frames) break;
+          let v = 0;
+          for (let ch = 0; ch < channels; ch++) v += samples[frame * channels + ch];
+          v /= channels;
+          if (v < mn) mn = v;
+          if (v > mx) mx = v;
+        }
+        mins[x] = mn; maxs[x] = mx;
+      }
+      return { mins, maxs };
+    }
+
+    function draw(env, fillStyle, alpha) {
+      ctx.fillStyle = fillStyle;
+      ctx.globalAlpha = alpha;
+      for (let x = 0; x < w; x++) {
+        const yTop = (1 - (env.maxs[x] + 1) / 2) * h;
+        const yBot = (1 - (env.mins[x] + 1) / 2) * h;
+        ctx.fillRect(x, yTop, 1, Math.max(1, yBot - yTop));
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    draw(envelope(original), "#98968f", 0.5);
+    draw(envelope(processed), color, 0.85);
+  }
+
   document.querySelectorAll("button[data-key]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const key = btn.dataset.key;
@@ -293,6 +350,7 @@
           const data = decoded.getChannelData(ch);
           for (let i = 0; i < frames; i++) mem[i * channels + ch] = data[i];
         }
+        const originalSnapshot = mem.slice(); // tan_normalize_offline mutates in place
         wasm.tan_normalize_offline(ptr, len, decoded.sampleRate, channels, 0);
         mem = new Float32Array(wasm.memory.buffer, ptr, len);
 
@@ -300,6 +358,9 @@
         const blob = encodeWav(mem, decoded.sampleRate, channels);
         procEl.src = URL.createObjectURL(blob);
         document.getElementById(`result-${key}`).hidden = false;
+        const rowColor = getComputedStyle(btn).backgroundColor;
+        drawWaveform(document.getElementById(`wave-${key}`), originalSnapshot, mem, channels, rowColor);
+        document.getElementById(`wave-legend-${key}`).hidden = false;
         procEl.play().catch(() => {});
         status.textContent = "";
       } catch (err) {

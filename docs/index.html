@@ -169,6 +169,9 @@
   button:hover { filter: brightness(1.1); }
   input[type="file"] { font: inherit; color: var(--muted); }
   #file-status, #live-status { font-size: 0.9rem; color: var(--muted); }
+  canvas.wave { width: 100%; height: 90px; display: block; margin-top: 0.5rem; border-radius: 6px; background: color-mix(in srgb, var(--accent) 6%, var(--card)); }
+  .wave-legend { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
+  .wave-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.3rem; }
   footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
 </style>
 </head>
@@ -260,6 +263,8 @@
       <audio controls id="file-original"></audio>
       <p><strong>Normalized by TAN</strong></p>
       <audio controls id="file-processed"></audio>
+      <canvas class="wave" id="file-wave" width="600" height="90"></canvas>
+      <div class="wave-legend"><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent)"></span>after TAN</div>
     </div>
   </div>
 
@@ -309,6 +314,7 @@
           const data = decoded.getChannelData(ch);
           for (let i = 0; i < frames; i++) mem[i * channels + ch] = data[i];
         }
+        const originalSnapshot = mem.slice(); // tan_normalize_offline mutates in place
         wasm.tan_normalize_offline(ptr, len, decoded.sampleRate, channels, 0);
         mem = new Float32Array(wasm.memory.buffer, ptr, len);
 
@@ -317,6 +323,7 @@
         document.getElementById("file-original").src = URL.createObjectURL(file);
         document.getElementById("file-processed").src = URL.createObjectURL(blob);
         document.getElementById("file-result").hidden = false;
+        drawWaveform(document.getElementById("file-wave"), originalSnapshot, mem, channels, getComputedStyle(document.documentElement).getPropertyValue("--accent"));
         fileStatus.textContent = "Done - compare below. Nothing left your machine.";
       } catch (err) {
         fileStatus.textContent = "Couldn't process that file: " + err.message;
@@ -339,6 +346,51 @@
         v.setInt16(44 + i * 2, s * 32767, true);
       }
       return new Blob([buf], { type: "audio/wav" });
+    }
+
+    // Draws the original (muted) and processed (accent-colored) envelopes
+    // overlaid on one canvas: wherever the colored line pulls in from the
+    // gray one, TAN acted there.
+    function drawWaveform(canvas, original, processed, channels, color) {
+      const w = canvas.width, h = canvas.height;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, w, h);
+      const frames = original.length / channels;
+      const step = Math.max(1, Math.floor(frames / w));
+
+      function envelope(samples) {
+        const mins = new Float32Array(w);
+        const maxs = new Float32Array(w);
+        for (let x = 0; x < w; x++) {
+          let mn = 0, mx = 0;
+          const start = x * step;
+          for (let i = 0; i < step; i++) {
+            const frame = start + i;
+            if (frame >= frames) break;
+            let v = 0;
+            for (let ch = 0; ch < channels; ch++) v += samples[frame * channels + ch];
+            v /= channels;
+            if (v < mn) mn = v;
+            if (v > mx) mx = v;
+          }
+          mins[x] = mn; maxs[x] = mx;
+        }
+        return { mins, maxs };
+      }
+
+      function draw(env, fillStyle, alpha) {
+        ctx.fillStyle = fillStyle;
+        ctx.globalAlpha = alpha;
+        for (let x = 0; x < w; x++) {
+          const yTop = (1 - (env.maxs[x] + 1) / 2) * h;
+          const yBot = (1 - (env.mins[x] + 1) / 2) * h;
+          ctx.fillRect(x, yTop, 1, Math.max(1, yBot - yTop));
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      draw(envelope(original), "#98968f", 0.5);
+      draw(envelope(processed), color, 0.85);
     }
 
     // ---- Live mode: tab audio through the streaming engine ----
