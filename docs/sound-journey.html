@@ -41,15 +41,29 @@
   p.lead { color: var(--muted); max-width: 640px; margin: 0 0 3rem; }
 
   .row {
+    position: relative;
+    overflow: hidden;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 3rem;
     align-items: center;
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 3.5rem 1.25rem;
-    border-top: 1px solid var(--edge);
+    padding: 4.5rem max(1.25rem, calc((100% - 1100px) / 2));
+    background: color-mix(in srgb, var(--accent-row) 16%, var(--bg));
   }
+  .row::before {
+    content: "";
+    position: absolute;
+    inset: -15%;
+    background:
+      radial-gradient(32% 45% at 18% 22%, color-mix(in srgb, var(--accent-row) 55%, transparent), transparent 72%),
+      radial-gradient(38% 50% at 85% 75%, color-mix(in srgb, var(--accent-row) 45%, transparent), transparent 70%),
+      radial-gradient(26% 32% at 60% 10%, color-mix(in srgb, var(--accent-row) 35%, transparent), transparent 75%),
+      radial-gradient(30% 40% at 40% 95%, color-mix(in srgb, var(--accent-row) 30%, transparent), transparent 75%);
+    filter: blur(50px);
+    z-index: 0;
+    pointer-events: none;
+  }
+  .row > * { position: relative; z-index: 1; }
   .row:nth-child(even) .art { order: 2; }
   .row .art {
     display: flex;
