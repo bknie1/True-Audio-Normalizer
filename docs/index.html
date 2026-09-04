@@ -225,6 +225,11 @@
     const liveStatus = document.getElementById("live-status");
     let liveCtx = null, liveStream = null;
 
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      liveBtn.disabled = true;
+      liveStatus.textContent = "Not available on this browser/device - tab-audio sharing is a desktop Chrome/Edge feature. Use the file drop above instead.";
+    }
+
     liveBtn.addEventListener("click", async () => {
       if (liveCtx) { stopLive(); return; }
       try {
@@ -274,7 +279,7 @@
 
   <h2>How it works</h2>
   <p>Three stages, all classical DSP, all in
-  <a href="https://github.com/bknie1/TAN/tree/main/tan-core/src">tan-core</a>:</p>
+  <a href="https://github.com/bknie1/True-Audio-Normalizer/tree/main/tan-core/src">tan-core</a>:</p>
   <ol>
     <li><strong>Perceptual loudness metering</strong> - ITU-R BS.1770 K-weighting
     (shelf + high-pass biquads), so gain decisions track how loud things
@@ -295,8 +300,8 @@
   </ol>
 
   <h2>Reproduce it</h2>
-  <pre>git clone https://github.com/bknie1/TAN
-cd TAN
+  <pre>git clone https://github.com/bknie1/True-Audio-Normalizer
+cd True-Audio-Normalizer
 cargo run --release -p tan-cli -- gen demo-input.wav
 cargo run --release -p tan-cli -- process demo-input.wav demo-output.wav movie</pre>
 
@@ -309,7 +314,7 @@ cargo run --release -p tan-cli -- process demo-input.wav demo-output.wav movie</
   </ul>
 
   <footer>
-    <a href="https://github.com/bknie1/TAN">github.com/bknie1/TAN</a> · MIT licensed
+    <a href="https://github.com/bknie1/True-Audio-Normalizer">github.com/bknie1/True-Audio-Normalizer</a> · MIT licensed
     · <a href="eli5.html">the no-jargon explanation</a>
   </footer>
 </main>

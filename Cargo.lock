@@ -574,25 +574,25 @@ dependencies = [
 
 [[package]]
 name = "tan-cli"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "tan-core",
 ]
 
 [[package]]
 name = "tan-core"
-version = "0.1.0"
+version = "0.0.1"
 
 [[package]]
 name = "tan-ffi"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "tan-core",
 ]
 
 [[package]]
 name = "tan-live"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "cpal",
  "tan-core",

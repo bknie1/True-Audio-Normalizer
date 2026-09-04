@@ -1,9 +1,9 @@
 #!/bin/sh
 # TAN installer for macOS/Linux.
-# Usage:  curl -fsSL https://raw.githubusercontent.com/bknie1/TAN/main/install.sh | sh
+# Usage:  curl -fsSL https://raw.githubusercontent.com/bknie1/True-Audio-Normalizer/main/install.sh | sh
 set -e
 
-repo="bknie1/TAN"
+repo="bknie1/True-Audio-Normalizer"
 install_dir="$HOME/.local/bin"
 
 case "$(uname -s)" in

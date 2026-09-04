@@ -52,7 +52,7 @@ program runs. Good qualities for something that processes sound all day without
 glitching.
 
 WebAssembly lets the same code run in a browser. That's why the
-[demo page](https://bknie1.github.io/TAN/) can normalize your own files, or a
+[demo page](https://bknie1.github.io/True-Audio-Normalizer/) can normalize your own files, or a
 playing YouTube tab, without uploading anything anywhere.
 
 ## Where it's headed

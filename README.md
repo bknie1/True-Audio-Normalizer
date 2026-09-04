@@ -7,7 +7,7 @@ Linux, Android, and (where the platform allows it) iOS, without the user having 
 touch anything else about their audio setup.
 
 Hear it, run it on your own files, or pipe live browser-tab audio (YouTube included)
-through it at **[bknie1.github.io/TAN](https://bknie1.github.io/TAN/)**. Everything
+through it at **[bknie1.github.io/True-Audio-Normalizer](https://bknie1.github.io/True-Audio-Normalizer/)**. Everything
 runs client-side; nothing is uploaded.
 
 **[Install it](INSTALL.md)** - Windows, macOS, Linux, or mobile as an installable web app.

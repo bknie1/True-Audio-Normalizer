@@ -1,12 +1,12 @@
 # Installing TAN
 
 Every release is published at
-[github.com/bknie1/TAN/releases](https://github.com/bknie1/TAN/releases).
+[github.com/bknie1/True-Audio-Normalizer/releases](https://github.com/bknie1/True-Audio-Normalizer/releases).
 
 ## Windows
 
 ```
-irm https://raw.githubusercontent.com/bknie1/TAN/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/bknie1/True-Audio-Normalizer/main/install.ps1 | iex
 ```
 
 Installs to `%LOCALAPPDATA%\Programs\TAN` and adds it to your user `PATH`.
@@ -50,7 +50,7 @@ is the next major piece of work; see the [README's roadmap](README.md).
 ## macOS / Linux
 
 ```
-curl -fsSL https://raw.githubusercontent.com/bknie1/TAN/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/bknie1/True-Audio-Normalizer/main/install.sh | sh
 ```
 
 Installs `tan-cli` to `~/.local/bin`. File processing (`process`,
@@ -60,7 +60,7 @@ each OS needs its own audio backend work).
 
 ## Android / iOS
 
-No native app yet. Open [bknie1.github.io/TAN](https://bknie1.github.io/TAN/)
+No native app yet. Open [bknie1.github.io/True-Audio-Normalizer](https://bknie1.github.io/True-Audio-Normalizer/)
 in Chrome (Android) or Safari (iOS) and use the browser's "Add to Home
 Screen" / "Install app" option - it runs the same WebAssembly engine as an
 installed, full-screen app icon. It handles your own files today; live
@@ -70,8 +70,8 @@ restricts third-party apps from processing other apps' audio at all).
 ## Building from source
 
 ```
-git clone https://github.com/bknie1/TAN
-cd TAN
+git clone https://github.com/bknie1/True-Audio-Normalizer
+cd True-Audio-Normalizer
 cargo build --release
 ```
 

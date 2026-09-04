@@ -1,9 +1,9 @@
 # TAN installer for Windows.
-# Usage:  irm https://raw.githubusercontent.com/bknie1/TAN/main/install.ps1 | iex
+# Usage:  irm https://raw.githubusercontent.com/bknie1/True-Audio-Normalizer/main/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
-$repo = "bknie1/TAN"
+$repo = "bknie1/True-Audio-Normalizer"
 $installDir = "$env:LOCALAPPDATA\Programs\TAN"
 
 Write-Host "Finding latest TAN release..."
