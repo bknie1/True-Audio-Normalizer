@@ -26,6 +26,18 @@
       --accent: #e0764a;
     }
   }
+  /* Row accents, theme-split like --accent above. Two of the four raw
+     values fail 3:1 non-text contrast (SC 1.4.11) on the light background;
+     see ICON-SYSTEM.md for the measured table. */
+  .row.music   { --accent-row: #946418; }
+  .row.movie   { --accent-row: #3f9179; }
+  .row.game    { --accent-row: #5661c4; }
+  .row.podcast { --accent-row: #3d7ab5; }
+  @media (prefers-color-scheme: dark) {
+    .row.music { --accent-row: #c98a2e; }
+    .row.game  { --accent-row: #7b85e3; }
+  }
+
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
@@ -96,42 +108,70 @@
     margin-top: 0.6rem;
   }
   button:hover { filter: brightness(1.1); }
+  /* White on the dark-theme game accent is 3.33:1 and fails text contrast;
+     --bg on it is 5.48:1. Other rows' accents pass with white already. */
+  @media (prefers-color-scheme: dark) {
+    .row.game button { color: var(--bg); }
+  }
   button:disabled { opacity: 0.5; cursor: default; }
   .status { font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; min-height: 1.2em; }
   canvas.wave { width: 100%; height: 90px; display: block; margin-top: 0.75rem; border-radius: 6px; background: color-mix(in srgb, var(--accent-row, var(--accent)) 6%, var(--card)); }
   .wave-legend { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
   .wave-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.3rem; }
-  .song-picker {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.6rem;
-    margin: 0.75rem 0 1.1rem;
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
   }
+
+  .song-picker {
+    display: flex; flex-wrap: wrap; gap: 0.6rem;
+    margin: 0.75rem 0 1.1rem; padding: 0; border: 0; min-width: 0;
+  }
+  .song-opt { position: relative; }
+
   .song-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3rem;
-    width: 76px;
-    min-height: 64px;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 0.3rem;
+    width: 76px; min-height: 64px;            /* > 44x44, SC 2.5.5 */
     padding: 0.5rem 0.35rem;
     background: var(--card);
     border: 1px solid var(--edge);
     border-radius: 10px;
-    color: var(--muted);
-    cursor: pointer;
-    font: inherit;
+    color: var(--muted);                      /* 5.0:1 light, 6.2:1 dark */
+    cursor: pointer; font: inherit;
   }
-  .song-btn svg { width: 22px; height: 22px; flex: none; }
+  .song-btn input { position: absolute; width: 1px; height: 1px; margin: -1px;
+                    overflow: hidden; clip: rect(0 0 0 0); }
+  .song-btn .glyph { width: 22px; height: 22px; flex: none; }
   .song-btn .song-label { font-size: 0.68rem; line-height: 1.15; text-align: center; }
-  .song-btn:hover { border-color: var(--accent-row, var(--accent)); color: var(--ink); }
-  .song-btn:focus-visible { outline: 2px solid var(--accent-row, var(--accent)); outline-offset: 2px; }
-  .song-btn.active {
+
+  .song-btn:hover { color: var(--ink); border-color: var(--accent-row, var(--accent)); }
+
+  .song-btn:has(input:checked) {
+    color: var(--ink);
+    border: 2px solid var(--accent-row, var(--accent));
+    padding: calc(0.5rem - 1px) calc(0.35rem - 1px);   /* keep the tile the same size */
     background: color-mix(in srgb, var(--accent-row, var(--accent)) 16%, var(--card));
-    border-color: var(--accent-row, var(--accent));
-    color: var(--accent-row, var(--accent));
   }
+  .song-btn:has(input:checked) .song-label { font-weight: 600; }
+
+  .song-btn:has(input:focus-visible) { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  /* Tooltip: hoverable (no gap, bridged by ::before), persistent while
+     hovered or focused, dismissible via Escape (data-tips-hidden). */
+  .tip {
+    position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%);
+    margin-bottom: 6px; padding: 0.3rem 0.55rem;
+    background: var(--ink); color: var(--bg);
+    font-size: 0.75rem; line-height: 1.3; white-space: nowrap; border-radius: 6px;
+    visibility: hidden; opacity: 0; transition: opacity 0.12s;
+    z-index: 2; pointer-events: auto;
+  }
+  .tip::before { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 8px; }
+  .song-opt:hover .tip,
+  .song-opt:has(input:focus-visible) .tip { visibility: visible; opacity: 1; }
+  .song-picker[data-tips-hidden] .tip { visibility: hidden; opacity: 0; }
+  @media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
   .credit { font-size: 0.76rem; color: var(--muted); margin-top: 0.75rem; }
   .credit a { color: inherit; }
   footer { max-width: 900px; margin: 0 auto; padding: 2rem 1.25rem 4rem; color: var(--muted); font-size: 0.85rem; }
@@ -153,7 +193,7 @@
   your browser.</p>
 </div>
 
-<div class="row" style="--accent-row:#c98a2e">
+<div class="row music">
   <div class="art">
     <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
       <circle cx="100" cy="100" r="95" fill="none" stroke="#c98a2e" stroke-width="3"/>
@@ -173,32 +213,61 @@
     that's the joke. This is about as close to raw "as-performed" range as
     a music recording gets. Same performer, same piano - pick any track,
     the mixing problem is identical.</p>
-    <div class="song-picker" id="song-picker" role="group" aria-label="Choose a song">
-      <button class="song-btn active" data-song="dope-peddler">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v18M8 7.5c0-1.5 1.5-2.5 4-2.5s4 1 4 2.5-1.5 2.5-4 2.5-4 1-4 2.5 1.5 2.5 4 2.5 4-1 4-2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        <span class="song-label">Dope Peddler</span>
-      </button>
-      <button class="song-btn" data-song="fight-fiercely">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-        <span class="song-label">Fight Fiercely</span>
-      </button>
-      <button class="song-btn" data-song="hunting-song">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
-        <span class="song-label">Hunting Song</span>
-      </button>
-      <button class="song-btn" data-song="be-prepared">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
-        <span class="song-label">Be Prepared</span>
-      </button>
-      <button class="song-btn" data-song="lobachevsky">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 5h12l-6.5 7L18 19H6l6.5-7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-        <span class="song-label">Lobachevsky</span>
-      </button>
-      <button class="song-btn" data-song="hold-your-hand">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2C4.5 6.7 6.8 4.5 9.3 4.5c1.2 0 2.3.6 2.7 1.5.4-.9 1.5-1.5 2.7-1.5 2.5 0 4.8 2.2 4.8 5.3C19.5 15.4 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-        <span class="song-label">Hold Your Hand</span>
-      </button>
-    </div>
+    <fieldset class="song-picker" id="song-picker">
+      <legend class="sr-only">Choose a song</legend>
+
+      <div class="song-opt">
+        <label class="song-btn">
+          <input type="radio" name="song" value="dope-peddler" checked aria-describedby="tip-dope-peddler" autocomplete="off">
+          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v18M8 7.5c0-1.5 1.5-2.5 4-2.5s4 1 4 2.5-1.5 2.5-4 2.5-4 1-4 2.5 1.5 2.5 4 2.5 4-1 4-2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="song-label">Dope Peddler</span>
+        </label>
+        <span class="tip" role="tooltip" id="tip-dope-peddler">The Old Dope Peddler</span>
+      </div>
+
+      <div class="song-opt">
+        <label class="song-btn">
+          <input type="radio" name="song" value="fight-fiercely" aria-describedby="tip-fight-fiercely" autocomplete="off">
+          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          <span class="song-label">Fight Fiercely</span>
+        </label>
+        <span class="tip" role="tooltip" id="tip-fight-fiercely">Fight Fiercely, Harvard</span>
+      </div>
+
+      <div class="song-opt">
+        <label class="song-btn">
+          <input type="radio" name="song" value="hunting-song" aria-describedby="tip-hunting-song" autocomplete="off">
+          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+          <span class="song-label">Hunting Song</span>
+        </label>
+        <span class="tip" role="tooltip" id="tip-hunting-song">The Hunting Song</span>
+      </div>
+
+      <div class="song-opt">
+        <label class="song-btn">
+          <input type="radio" name="song" value="be-prepared" autocomplete="off">
+          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <span class="song-label">Be Prepared</span>
+        </label>
+      </div>
+
+      <div class="song-opt">
+        <label class="song-btn">
+          <input type="radio" name="song" value="lobachevsky" autocomplete="off">
+          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 5h12l-6.5 7L18 19H6l6.5-7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          <span class="song-label">Lobachevsky</span>
+        </label>
+      </div>
+
+      <div class="song-opt">
+        <label class="song-btn">
+          <input type="radio" name="song" value="hold-your-hand" aria-describedby="tip-hold-your-hand" autocomplete="off">
+          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2C4.5 6.7 6.8 4.5 9.3 4.5c1.2 0 2.3.6 2.7 1.5.4-.9 1.5-1.5 2.7-1.5 2.5 0 4.8 2.2 4.8 5.3C19.5 15.4 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          <span class="song-label">Hold Your Hand</span>
+        </label>
+        <span class="tip" role="tooltip" id="tip-hold-your-hand">I Hold Your Hand in Mine</span>
+      </div>
+    </fieldset>
     <div class="row-label">Original</div>
     <audio controls preload="none" id="orig-music" src="audio/samples/music-lehrer-dope-peddler.mp3"></audio>
     <div id="result-music" hidden>
@@ -215,7 +284,7 @@
   </div>
 </div>
 
-<div class="row" style="--accent-row:#3f9179">
+<div class="row movie">
   <div class="art">
     <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
       <rect x="30" y="45" width="140" height="100" rx="6" fill="none" stroke="#3f9179" stroke-width="3"/>
@@ -253,7 +322,7 @@
   </div>
 </div>
 
-<div class="row" style="--accent-row:#5661c4">
+<div class="row game">
   <div class="art">
     <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
       <rect x="35" y="80" width="130" height="60" rx="16" fill="none" stroke="#5661c4" stroke-width="3"/>
@@ -288,7 +357,7 @@
   </div>
 </div>
 
-<div class="row" style="--accent-row:#3d7ab5">
+<div class="row podcast">
   <div class="art">
     <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
       <rect x="85" y="30" width="30" height="60" rx="15" fill="none" stroke="#3d7ab5" stroke-width="3"/>
@@ -438,21 +507,31 @@
   };
   const origMusic = document.getElementById("orig-music");
   const musicTitle = document.getElementById("music-title");
-  document.querySelectorAll(".song-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const key = btn.dataset.song;
-      document.querySelectorAll(".song-btn").forEach((b) => b.classList.toggle("active", b === btn));
-      origMusic.pause();
-      origMusic.src = `audio/samples/music-lehrer-${key}.mp3`;
-      musicTitle.textContent = songTitles[key];
-      // The processed result and waveform belong to whichever track was
-      // last run through TAN - stale once the source track changes.
-      document.getElementById("result-music").hidden = true;
-      document.getElementById("wave-music").hidden = true;
-      document.getElementById("wave-legend-music").hidden = true;
-      document.getElementById("status-music").textContent = "";
-    });
+  const songPicker = document.getElementById("song-picker");
+
+  function selectSong(key) {
+    origMusic.pause();
+    origMusic.src = `audio/samples/music-lehrer-${key}.mp3`;
+    musicTitle.textContent = songTitles[key];
+    // The processed result and waveform belong to whichever track was last
+    // run through TAN - stale once the source track changes.
+    document.getElementById("result-music").hidden = true;
+    document.getElementById("wave-music").hidden = true;
+    document.getElementById("wave-legend-music").hidden = true;
+    document.getElementById("status-music").textContent = "";
+  }
+
+  // The browser owns the checked state (native radios) and keyboard
+  // handling (Tab once, arrow keys between options); this just reacts to it.
+  songPicker.addEventListener("change", (e) => selectSong(e.target.value));
+
+  // Tooltip dismiss/restore per SC 1.4.13: Escape hides them without moving
+  // focus, and they come back on the next pointer move or focus change.
+  songPicker.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") songPicker.setAttribute("data-tips-hidden", "");
   });
+  songPicker.addEventListener("pointermove", () => songPicker.removeAttribute("data-tips-hidden"));
+  songPicker.addEventListener("focusin", () => songPicker.removeAttribute("data-tips-hidden"));
 
   const wasmBytesPromise = fetch("tan.wasm", { cache: "no-cache" }).then(r => r.arrayBuffer());
 
