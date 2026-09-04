@@ -99,6 +99,13 @@
     opacity: 0;
     transform: translateY(18px);
     transition: opacity 0.6s ease, transform 0.6s ease;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--zone) 9%, var(--bg)) 22%,
+      color-mix(in srgb, var(--zone) 9%, var(--bg)) 78%,
+      transparent 100%
+    );
   }
   .zone.in { opacity: 1; transform: translateY(0); }
   .zone::before {
