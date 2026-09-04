@@ -1,75 +1,65 @@
-# TAN, explained like you're five
+# TAN, minus the jargon
 
-*(The technical version lives in the [README](README.md). This one is for everyone
-else.)*
+The technical version is the [README](README.md). This is the plain one.
 
-## The problem
+## Why I built this
 
-You're watching a movie at night. The characters whisper something important, so
-you turn the volume up. Thirty seconds later a building explodes and wakes up the
-whole house, so you grab the remote and turn it down. Repeat for two hours.
+I'm getting older and movie dialogue got hard to hear. I turn it up for the
+whispers. The action scene blows me out of the chair, so I turn it down. Repeat
+for two hours. Common problem.
 
-That happens because movies are mixed for theaters, where huge quiet-to-loud
-swings feel exciting. On a TV or laptop at home, they're just annoying.
+Movies are mixed for theaters. Big quiet-to-loud swings feel great in a theater.
+At home you just end up watching the whole thing holding the remote.
 
-## What TAN does
+## What it does
 
-TAN is like a very fast, very patient friend sitting next to you with a hand on
-the volume knob at all times:
+TAN keeps a hand on the volume knob so you don't have to. Whispers get nudged
+up. Explosions get eased down. Everything else is left alone. The remote stays
+on the couch.
 
-- When someone whispers, it nudges the volume up a little.
-- When something explodes, it eases the volume down a little.
-- The rest of the time, it leaves everything alone.
+## How it catches an explosion before you hear it
 
-You hear everything at a comfortable, even level, and you never touch the remote.
+It cheats time a little. TAN holds the sound back 8 milliseconds and uses the
+head start to peek at what's coming. That's under a hundredth of a second; you
+can't perceive it. The bang shows up already turned down.
 
-## How can it react before the explosion?
+Files get a better deal. TAN reads the whole file before touching anything, so
+it knows about every explosion in advance. Every adjustment lands smooth.
 
-It cheats time a tiny bit. TAN holds the sound back for 8 milliseconds - less
-than a hundredth of a second, way too short to notice - and uses that head start
-to peek at what's coming. If a bang is on the way, the volume is already lowered
-by the time it reaches your ears. No flinch, no click.
+## Why not make everything the same volume
 
-And when TAN processes a whole file (rather than live audio), it gets to "watch
-the movie" once before doing anything. Then it knows about every explosion in
-advance and can make every adjustment perfectly smoothly.
+Because that sounds awful. Flattening the whole mix kills the movie. TAN
+figures out the show's own normal loudness and pulls everything gently toward
+it. Dialogue comes up to normal. Explosions settle just above normal. Your
+volume knob keeps meaning what it always meant.
 
-## Why doesn't it just make everything the same volume?
+It also measures loudness the way ears actually work. A deep rumble and a clear
+voice can carry identical numbers and sound completely different. TAN uses the
+same hearing model the streaming industry standardized on, so its idea of too
+loud matches yours.
 
-That would sound awful - like a robot flattening all the excitement out. TAN
-figures out the show's own natural, normal loudness and gently pulls everything
-*toward* that. Quiet dialogue comes up to normal, explosions come down to
-slightly-above-normal, and the show still feels like itself. It also never
-changes the overall volume you chose - your volume knob still means what it
-always meant.
+## Hasn't Dolby done this
 
-One more trick: it measures loudness the way your *ear* hears it, not the way a
-computer sees the numbers. A deep rumble and a clear voice can look identical to
-a computer but sound completely different to you - TAN uses the same "hearing
-model" that the TV and streaming industry uses, so its idea of "too loud" matches
-yours.
+Mostly. Their version needs loudness data baked into the movie at the studio,
+and it only runs on hardware that licenses their tech. That's a walled garden.
+I hate walled gardens.
 
-## Doesn't this already exist?
+TAN does the job by listening. No metadata, no licensed hardware. The code is
+public, free, and readable.
 
-Sort of. Companies like Dolby sell something similar, but their version needs
-special information baked into the movie when it's made, and it only works on
-devices that pay to license their technology. TAN does the whole job just by
-listening - no secret metadata, no licensed chip, no locked ecosystem - and all
-of its code is public, free, and readable by anyone.
+## What's under the hood
 
-## What's it built with?
+Rust, a language that's fast and catches whole categories of bugs before the
+program runs. Good qualities for something that processes sound all day without
+glitching.
 
-- **Rust** - a programming language known for being fast and for catching whole
-  categories of bugs before the program even runs. Good qualities for something
-  that has to process sound perfectly, forever, without glitching.
-- **WebAssembly** - a way to run that same code inside a web browser. It's why
-  the [demo page](https://bknie1.github.io/TAN/) can normalize your own files, or
-  even a playing YouTube tab, right in the page without uploading anything.
+WebAssembly lets the same code run in a browser. That's why the
+[demo page](https://bknie1.github.io/TAN/) can normalize your own files, or a
+playing YouTube tab, without uploading anything anywhere.
 
-## Where's it going?
+## Where it's headed
 
-Today TAN works on files and on browser audio. The plan is for it to eventually
-sit quietly inside your computer, phone, or TV and fix *everything* you play,
-automatically. The step after that: teaching it to recognize spoken dialogue
-specifically, so voices stay clear even when music and effects are trying to
-bury them.
+Today it handles files and browser audio. Next it should sit inside your
+computer, phone, or TV and fix everything you play automatically. After that I
+want it recognizing dialogue specifically, so voices stay clear when the music
+tries to bury them.
