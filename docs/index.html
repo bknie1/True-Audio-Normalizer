@@ -615,6 +615,7 @@
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         draw(lastT);
       }
+      resize();
       window.addEventListener("resize", resize);
 
       function draw(t) {
