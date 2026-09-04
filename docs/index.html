@@ -67,6 +67,18 @@
     font-size: 0.85rem;
   }
   .milestones li { margin: 0.4rem 0; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.55rem 1.1rem;
+    font: inherit;
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(1.1); }
+  input[type="file"] { font: inherit; color: var(--muted); }
+  #file-status, #live-status { font-size: 0.9rem; color: var(--muted); }
   footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
 </style>
 </head>
@@ -93,18 +105,158 @@
   </div>
 
   <div class="card">
-    <h3>After TAN</h3>
-    <p>Same content, loudness range reduced to ~9 dB: dialogue audible, action still hits, peaks limited. Big cuts complete inside the onset transient itself, where the ear can't track them.</p>
+    <h3>After TAN (live mode)</h3>
+    <p>Processed in real time with 8 ms of latency, the way system-wide audio would be. Big cuts complete inside the onset transient itself, where the ear can't track them.</p>
     <audio controls preload="none" src="audio/demo-output.wav"></audio>
   </div>
 
+  <div class="card">
+    <h3>After TAN (two-pass)</h3>
+    <p>For files, TAN analyzes everything first: gain ramps down <em>ahead of</em> each loud onset, so corrections are completely inaudible. Zero reactive artifacts.</p>
+    <audio controls preload="none" src="audio/demo-output-twopass.wav"></audio>
+  </div>
+
   <table>
-    <tr><th>K-weighted loudness</th><th>Before</th><th>After</th></tr>
-    <tr><td>Quiet passages</td><td>-30.9 dB</td><td>-28.0 dB</td></tr>
-    <tr><td>Loud passages</td><td>-6.6 dB</td><td>-19.0 dB</td></tr>
-    <tr><td>Loudness range</td><td>24.3 dB</td><td class="win">9.0 dB</td></tr>
-    <tr><td>Peak</td><td>0.95</td><td>0.89 (limited)</td></tr>
+    <tr><th>K-weighted loudness</th><th>Before</th><th>Live</th><th>Two-pass</th></tr>
+    <tr><td>Quiet passages</td><td>-30.9 dB</td><td>-27.8 dB</td><td>-28.1 dB</td></tr>
+    <tr><td>Loud passages</td><td>-6.6 dB</td><td>-20.5 dB</td><td>-21.5 dB</td></tr>
+    <tr><td>Loudness range</td><td>24.3 dB</td><td class="win">7.3 dB</td><td class="win">6.6 dB</td></tr>
+    <tr><td>Peak</td><td>0.95</td><td>0.89 (limited)</td><td>0.21 (never hot)</td></tr>
   </table>
+
+  <h2>Try it yourself, right here</h2>
+  <p>The same Rust engine, compiled to WebAssembly, running entirely in your
+  browser - nothing is uploaded anywhere.</p>
+
+  <div class="card">
+    <h3>Your own file</h3>
+    <p>Drop any audio or video file (mp4, mkv, mp3, wav...). TAN runs its
+    two-pass normalization on the audio and gives you both versions to compare.</p>
+    <input type="file" id="file-input" accept="audio/*,video/*">
+    <p id="file-status"></p>
+    <div id="file-result" hidden>
+      <p><strong>Original</strong></p>
+      <audio controls id="file-original"></audio>
+      <p><strong>Normalized by TAN</strong></p>
+      <audio controls id="file-processed"></audio>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Live on YouTube - or anything else</h3>
+    <p>Chrome/Edge only. Click start, pick the browser tab that's playing your
+    video, and check <em>"also share tab audio"</em>. That tab's sound then
+    plays through TAN's live engine instead. Stop sharing to go back to normal.</p>
+    <button id="live-btn">Start live TAN</button>
+    <p id="live-status"></p>
+  </div>
+
+  <script>
+    const wasmBytesPromise = fetch("tan.wasm").then(r => r.arrayBuffer());
+
+    // ---- File mode: offline two-pass in wasm ----
+    const fileInput = document.getElementById("file-input");
+    const fileStatus = document.getElementById("file-status");
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      try {
+        fileStatus.textContent = "Decoding...";
+        const ctx = new AudioContext();
+        const decoded = await ctx.decodeAudioData(await file.arrayBuffer());
+        ctx.close();
+        const channels = decoded.numberOfChannels;
+        const frames = decoded.length;
+
+        fileStatus.textContent = "Running TAN two-pass...";
+        const { instance } = await WebAssembly.instantiate(await wasmBytesPromise, {});
+        const wasm = instance.exports;
+        const len = frames * channels;
+        const ptr = wasm.tan_alloc(len);
+        let mem = new Float32Array(wasm.memory.buffer, ptr, len);
+        for (let ch = 0; ch < channels; ch++) {
+          const data = decoded.getChannelData(ch);
+          for (let i = 0; i < frames; i++) mem[i * channels + ch] = data[i];
+        }
+        wasm.tan_normalize_offline(ptr, len, decoded.sampleRate, channels, 0);
+        mem = new Float32Array(wasm.memory.buffer, ptr, len);
+
+        fileStatus.textContent = "Encoding result...";
+        const blob = encodeWav(mem, decoded.sampleRate, channels);
+        document.getElementById("file-original").src = URL.createObjectURL(file);
+        document.getElementById("file-processed").src = URL.createObjectURL(blob);
+        document.getElementById("file-result").hidden = false;
+        fileStatus.textContent = "Done - compare below. Nothing left your machine.";
+      } catch (err) {
+        fileStatus.textContent = "Couldn't process that file: " + err.message;
+      }
+    });
+
+    function encodeWav(interleaved, sampleRate, channels) {
+      const dataLen = interleaved.length * 2;
+      const buf = new ArrayBuffer(44 + dataLen);
+      const v = new DataView(buf);
+      const str = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+      str(0, "RIFF"); v.setUint32(4, 36 + dataLen, true); str(8, "WAVE");
+      str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+      v.setUint16(22, channels, true); v.setUint32(24, sampleRate, true);
+      v.setUint32(28, sampleRate * channels * 2, true);
+      v.setUint16(32, channels * 2, true); v.setUint16(34, 16, true);
+      str(36, "data"); v.setUint32(40, dataLen, true);
+      for (let i = 0; i < interleaved.length; i++) {
+        const s = Math.max(-1, Math.min(1, interleaved[i]));
+        v.setInt16(44 + i * 2, s * 32767, true);
+      }
+      return new Blob([buf], { type: "audio/wav" });
+    }
+
+    // ---- Live mode: tab audio through the streaming engine ----
+    const liveBtn = document.getElementById("live-btn");
+    const liveStatus = document.getElementById("live-status");
+    let liveCtx = null, liveStream = null;
+
+    liveBtn.addEventListener("click", async () => {
+      if (liveCtx) { stopLive(); return; }
+      try {
+        liveStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            suppressLocalAudioPlayback: true,
+          },
+        });
+        if (!liveStream.getAudioTracks().length) {
+          stopLive();
+          liveStatus.textContent = 'No audio was shared - pick a tab and tick "also share tab audio".';
+          return;
+        }
+        liveCtx = new AudioContext();
+        await liveCtx.audioWorklet.addModule("tan-worklet.js");
+        const node = new AudioWorkletNode(liveCtx, "tan-processor", {
+          outputChannelCount: [2],
+        });
+        node.port.postMessage({ wasmBytes: await wasmBytesPromise, profileId: 0 });
+        liveCtx.createMediaStreamSource(liveStream).connect(node);
+        node.connect(liveCtx.destination);
+        liveStream.getVideoTracks()[0].addEventListener("ended", stopLive);
+        liveBtn.textContent = "Stop live TAN";
+        liveStatus.textContent = "Live - that tab's audio is now playing through TAN.";
+      } catch (err) {
+        stopLive();
+        liveStatus.textContent = "Couldn't start: " + err.message;
+      }
+    });
+
+    function stopLive() {
+      if (liveStream) liveStream.getTracks().forEach(t => t.stop());
+      if (liveCtx) liveCtx.close();
+      liveCtx = null; liveStream = null;
+      liveBtn.textContent = "Start live TAN";
+      liveStatus.textContent = "";
+    }
+  </script>
 
   <h2>How it works</h2>
   <p>Three stages, all classical DSP, all in

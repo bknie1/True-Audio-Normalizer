@@ -12,3 +12,10 @@ dependencies = [
 [[package]]
 name = "tan-core"
 version = "0.1.0"
+
+[[package]]
+name = "tan-wasm"
+version = "0.1.0"
+dependencies = [
+ "tan-core",
+]
