@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TAN - True Audio Normalizer</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --ink: #1c1c1a;
+    --muted: #6b6a66;
+    --card: #ffffff;
+    --edge: #e3e1dc;
+    --accent: #b3552e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513;
+      --ink: #e8e6e1;
+      --muted: #98968f;
+      --card: #201f1c;
+      --edge: #34322d;
+      --accent: #e0764a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 780px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  h1 { font-size: 2.1rem; margin: 0 0 0.25rem; letter-spacing: -0.02em; }
+  .tagline { color: var(--muted); margin: 0 0 2.5rem; }
+  h2 { font-size: 1.25rem; margin: 2.75rem 0 0.75rem; }
+  p { margin: 0.75rem 0; }
+  a { color: var(--accent); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin: 1rem 0;
+  }
+  .card h3 { margin: 0 0 0.25rem; font-size: 1rem; }
+  .card p { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.75rem; }
+  audio { width: 100%; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.95rem; }
+  th, td { text-align: right; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--edge); }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; }
+  .win { color: var(--accent); font-weight: 600; }
+  code {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.85em;
+  }
+  pre {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+  }
+  .milestones li { margin: 0.4rem 0; }
+  footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TAN</h1>
+  <p class="tagline">True Audio Normalizer - fixing poorly mixed sound in real time. Open source, no metadata cheats, no walled garden.</p>
+
+  <p>Movie dialogue you can't hear, action scenes that blow you out of the chair.
+  The industry fix (Dolby Volume and friends) leans on loudness metadata embedded
+  at mastering time and ships locked inside licensed hardware. TAN does the job
+  blind - measuring perceived loudness the way a human ear does and riding gain
+  in real time - and it's MIT licensed Rust you can read.</p>
+
+  <h2>Hear it</h2>
+  <p>A deliberately badly mixed test signal: whisper-level dialogue alternating
+  with loud action bursts. Same clip, before and after TAN's movie profile.
+  <strong>Careful with your volume on the first one.</strong></p>
+
+  <div class="card">
+    <h3>Before</h3>
+    <p>Dialogue sits ~24 dB below the action - the "constantly grabbing the remote" experience.</p>
+    <audio controls preload="none" src="audio/demo-input.wav"></audio>
+  </div>
+
+  <div class="card">
+    <h3>After TAN</h3>
+    <p>Same content, loudness range reduced to ~11 dB: dialogue audible, action still hits, peaks limited.</p>
+    <audio controls preload="none" src="audio/demo-output.wav"></audio>
+  </div>
+
+  <table>
+    <tr><th>K-weighted loudness</th><th>Before</th><th>After</th></tr>
+    <tr><td>Quiet passages</td><td>-30.9 dB</td><td>-27.9 dB</td></tr>
+    <tr><td>Loud passages</td><td>-6.6 dB</td><td>-17.1 dB</td></tr>
+    <tr><td>Loudness range</td><td>24.3 dB</td><td class="win">10.7 dB</td></tr>
+    <tr><td>Peak</td><td>0.95</td><td>0.89 (limited)</td></tr>
+  </table>
+
+  <h2>How it works</h2>
+  <p>Three stages, all classical DSP, all in
+  <a href="https://github.com/bknie1/TAN/tree/main/tan-core/src">tan-core</a>:</p>
+  <ol>
+    <li><strong>Perceptual loudness metering</strong> - ITU-R BS.1770 K-weighting
+    (shelf + high-pass biquads), so gain decisions track how loud things
+    <em>sound</em>, not raw sample amplitude.</li>
+    <li><strong>Two-way gain riding</strong> - quiet dialogue is boosted toward a
+    target, loud passages are pulled down, with separate speed limits per
+    direction, fast recovery after cuts, and a gate so silence is never
+    amplified into hiss.</li>
+    <li><strong>Look-ahead limiting</strong> - output is delayed 8 ms while the
+    limiter watches incoming audio, so gain ramps down <em>before</em> a peak
+    arrives instead of clicking after it.</li>
+  </ol>
+
+  <h2>Reproduce it</h2>
+  <pre>git clone https://github.com/bknie1/TAN
+cd TAN
+cargo run --release -p tan-cli -- gen demo-input.wav
+cargo run --release -p tan-cli -- process demo-input.wav demo-output.wav movie</pre>
+
+  <h2>Roadmap</h2>
+  <ul class="milestones">
+    <li><strong>Done</strong> - hand-written WAV codec, perceptual metering, two-way AGC, look-ahead limiter, movie/music profiles, CI on Windows/macOS/Linux.</li>
+    <li><strong>Next</strong> - blind dialogue detection: a lightweight real-time neural model (DeepFilterNet-style) so speech specifically stays intelligible in the mix - the thing Dolby needs mastering-time metadata to do.</li>
+    <li><strong>Then</strong> - live system-audio adapters per platform (Windows APO, PipeWire, Core Audio), mobile.</li>
+  </ul>
+
+  <footer>
+    <a href="https://github.com/bknie1/TAN">github.com/bknie1/TAN</a> · MIT licensed
+  </footer>
+</main>
+</body>
+</html>

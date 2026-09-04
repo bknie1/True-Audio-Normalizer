@@ -8,8 +8,18 @@ touch anything else about their audio setup.
 
 ## Status
 
-Early work in progress. Currently building `tan-core`, the portable DSP engine, with
-no platform integration yet.
+The core engine works: perceptual (BS.1770 K-weighted) loudness metering, a two-way
+automatic gain rider, and a look-ahead peak limiter, with movie and music profiles.
+On the bundled demo it cuts a 24.3 dB loudness range down to 10.7 dB. Hear it at
+[bknie1.github.io/TAN](https://bknie1.github.io/TAN/).
+
+Roadmap:
+
+1. Done - WAV codec, perceptual metering, two-way AGC, look-ahead limiter, CLI, CI.
+2. Next - blind dialogue detection: a lightweight real-time neural model
+   (DeepFilterNet-style) so speech stays intelligible without the mastering-time
+   metadata Dolby relies on.
+3. Then - live system-audio adapters per platform, mobile.
 
 ## Architecture
 
