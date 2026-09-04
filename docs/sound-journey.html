@@ -276,12 +276,6 @@
     const bgLayer = document.getElementById("bg-layer");
     const neutral = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
     const rows = [...document.querySelectorAll(".row")];
-    const anchors = [
-      { el: document.querySelector(".top"), color: neutral },
-      ...rows.map((el) => ({ el, color: getComputedStyle(el).getPropertyValue("--accent-row").trim() || el.style.getPropertyValue("--accent-row") })),
-      { el: document.querySelector("footer"), color: neutral },
-    ];
-
     function hexToRgb(hex) {
       const n = parseInt(hex.replace("#", ""), 16);
       return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -291,6 +285,19 @@
       const mix = ca.map((c, i) => Math.round(c + (cb[i] - c) * t));
       return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
     }
+
+    // Mostly-neutral base with color as emphasis, not full saturation
+    // washing the whole viewport: each row's peak is only a 20% mix of its
+    // accent into the neutral, keeping contrast (and readability) intact.
+    const PEAK_INTENSITY = 0.2;
+    const anchors = [
+      { el: document.querySelector(".top"), color: neutral },
+      ...rows.map((el) => {
+        const accent = getComputedStyle(el).getPropertyValue("--accent-row").trim() || el.style.getPropertyValue("--accent-row");
+        return { el, color: lerp(neutral, accent, PEAK_INTENSITY) };
+      }),
+      { el: document.querySelector("footer"), color: neutral },
+    ];
 
     function center(el) {
       return el.offsetTop + el.offsetHeight / 2;
