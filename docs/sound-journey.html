@@ -65,11 +65,20 @@
   }
   .row:nth-child(even) .art { order: 2; }
   .row .art {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
   }
-  .row .art svg { width: 100%; max-width: 220px; height: auto; }
+  .row .art::before {
+    content: "";
+    position: absolute;
+    inset: -20%;
+    background: radial-gradient(circle, color-mix(in srgb, var(--accent-row) 55%, transparent) 0%, transparent 68%);
+    filter: blur(30px) saturate(1.4);
+    z-index: 0;
+  }
+  .row .art svg { position: relative; z-index: 1; width: 100%; max-width: 220px; height: auto; }
   .row h2 { margin: 0 0 0.4rem; font-size: 1.4rem; }
   .row .challenge { color: var(--accent-row, var(--accent)); font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 0.6rem; }
   .row p.desc { color: var(--muted); margin: 0 0 1.25rem; }
