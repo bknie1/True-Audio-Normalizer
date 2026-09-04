@@ -593,8 +593,10 @@
     // fixed full-viewport glow behind everything is repainted on scroll by
     // interpolating between each section's accent color, based on actual
     // element position (not fixed percentages), same system as the sound
-    // journey page. ----
-    (function () {
+    // journey page. Deferred to DOMContentLoaded because this script tag
+    // sits before the later zones (How it works, Reproduce it, Roadmap)
+    // and the footer in the document. ----
+    document.addEventListener("DOMContentLoaded", function () {
       const bgLayer = document.getElementById("bg-layer");
       const neutral = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
       const zones = [...document.querySelectorAll(".zone")];
@@ -648,7 +650,7 @@
       );
       window.addEventListener("resize", update);
       update();
-    })();
+    });
 
     // Reveal each section as it scrolls into view. Deferred to
     // DOMContentLoaded because this script tag sits before the later zones
