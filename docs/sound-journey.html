@@ -292,7 +292,7 @@
       <audio controls id="proc-music"></audio>
     </div>
     <canvas class="wave" id="wave-music" width="600" height="90" hidden></canvas>
-    <div class="wave-legend" id="wave-legend-music" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN</div>
+    <div class="wave-legend" id="wave-legend-music" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - the bright strip along the bottom is where TAN worked hardest</div>
     <div><button data-key="music">Run through TAN</button></div>
     <div class="status" id="status-music"></div>
     <div class="credit">From "Songs by Tom Lehrer" (1966 recording). Tom Lehrer
@@ -330,7 +330,7 @@
       <p class="sync-note">Same picture, TAN-processed audio - synced via Web Audio, not a re-encoded file.</p>
     </div>
     <canvas class="wave" id="wave-movie" width="600" height="90" hidden></canvas>
-    <div class="wave-legend" id="wave-legend-movie" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN</div>
+    <div class="wave-legend" id="wave-legend-movie" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - the bright strip along the bottom is where TAN worked hardest</div>
     <div><button data-key="movie">Run through TAN</button></div>
     <div class="status" id="status-movie"></div>
     <div class="credit">"Caminandes: Llama Drama" (2013), Blender Foundation,
@@ -365,7 +365,7 @@
       <audio controls id="proc-game"></audio>
     </div>
     <canvas class="wave" id="wave-game" width="600" height="90" hidden></canvas>
-    <div class="wave-legend" id="wave-legend-game" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN</div>
+    <div class="wave-legend" id="wave-legend-game" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - the bright strip along the bottom is where TAN worked hardest</div>
     <div><button data-key="game">Run through TAN</button></div>
     <div class="status" id="status-game"></div>
     <div class="credit">"8 Bit Battle Theme" by celestialghost8, CC0 (public
@@ -399,7 +399,7 @@
       <audio controls id="proc-podcast"></audio>
     </div>
     <canvas class="wave" id="wave-podcast" width="600" height="90" hidden></canvas>
-    <div class="wave-legend" id="wave-legend-podcast" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN</div>
+    <div class="wave-legend" id="wave-legend-podcast" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - the bright strip along the bottom is where TAN worked hardest</div>
     <div><button data-key="podcast">Run through TAN</button></div>
     <div class="status" id="status-podcast"></div>
     <div class="credit">Creative Commons Aotearoa New Zealand interview,
@@ -631,8 +631,70 @@
       ctx.globalAlpha = 1;
     }
 
-    draw(envelope(original), "#98968f", 0.5);
-    draw(envelope(processed), color, 0.85);
+    const envO = envelope(original);
+    const envP = envelope(processed);
+    draw(envO, "#98968f", 0.5);
+    draw(envP, color, 0.85);
+
+    // Heat strip along the bottom: how much TAN changed the amplitude in
+    // each column, so the biggest before/after moments are easy to find.
+    const diffs = new Float32Array(w);
+    let maxDiff = 0;
+    for (let x = 0; x < w; x++) {
+      diffs[x] = Math.abs((envP.maxs[x] - envP.mins[x]) - (envO.maxs[x] - envO.mins[x]));
+      if (diffs[x] > maxDiff) maxDiff = diffs[x];
+    }
+    if (maxDiff > 0) {
+      ctx.fillStyle = color;
+      for (let x = 0; x < w; x++) {
+        const t = diffs[x] / maxDiff;
+        if (t < 0.12) continue;
+        ctx.globalAlpha = 0.25 + 0.75 * t;
+        ctx.fillRect(x, h - 5, 1, 5);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // SoundCloud-style seeking: click the wave to jump there (and play), a
+  // playhead tracks position. Seeks whichever player is currently going,
+  // defaulting to the processed one.
+  function wireWaveSeek(canvas, origEl, procEl, color) {
+    const base = document.createElement("canvas");
+    base.width = canvas.width;
+    base.height = canvas.height;
+    base.getContext("2d").drawImage(canvas, 0, 0);
+    const ctx = canvas.getContext("2d");
+    canvas.style.cursor = "pointer";
+    const active = () => (!procEl.paused ? procEl : !origEl.paused ? origEl : procEl);
+    let rafId = null;
+    function paint() {
+      const el = active();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(base, 0, 0);
+      if (el.duration) {
+        const x = (el.currentTime / el.duration) * canvas.width;
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.14;
+        ctx.fillRect(0, 0, x, canvas.height);
+        ctx.globalAlpha = 0.9;
+        ctx.fillRect(x - 1, 0, 2, canvas.height);
+        ctx.globalAlpha = 1;
+      }
+      rafId = !procEl.paused || !origEl.paused ? requestAnimationFrame(paint) : null;
+    }
+    ["play", "pause", "seeked", "ended", "timeupdate"].forEach((ev) => {
+      origEl.addEventListener(ev, () => { if (!rafId) paint(); });
+      procEl.addEventListener(ev, () => { if (!rafId) paint(); });
+    });
+    canvas.addEventListener("click", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      const el = active();
+      if (el.duration) el.currentTime = frac * el.duration;
+      el.play().catch(() => {});
+      if (!rafId) paint();
+    });
   }
 
   document.querySelectorAll('button[data-key]:not([data-key="movie"])').forEach((btn) => {
@@ -671,7 +733,9 @@
         procEl.src = URL.createObjectURL(blob);
         document.getElementById(`result-${key}`).hidden = false;
         const rowColor = getComputedStyle(btn).backgroundColor;
-        drawWaveform(document.getElementById(`wave-${key}`), originalSnapshot, mem, channels, rowColor);
+        const waveCanvas = document.getElementById(`wave-${key}`);
+        drawWaveform(waveCanvas, originalSnapshot, mem, channels, rowColor);
+        wireWaveSeek(waveCanvas, origEl, procEl, rowColor);
         document.getElementById(`wave-legend-${key}`).hidden = false;
         procEl.play().catch(() => {});
         status.textContent = "";
@@ -760,7 +824,9 @@
         procVideo.muted = true; // belt and suspenders - the video's own audio must never play
         document.getElementById("result-movie").hidden = false;
         const rowColor = getComputedStyle(movieBtn).backgroundColor;
-        drawWaveform(document.getElementById("wave-movie"), originalSnapshot, mem, channels, rowColor);
+        const waveCanvas = document.getElementById("wave-movie");
+        drawWaveform(waveCanvas, originalSnapshot, mem, channels, rowColor);
+        wireWaveSeek(waveCanvas, origEl, procVideo, rowColor);
         document.getElementById("wave-legend-movie").hidden = false;
         await procVideo.play().catch(() => {});
         status.textContent = "";

@@ -54,20 +54,27 @@
     opacity: 0.5;
     pointer-events: none;
   }
-  .hero > *:not(#hero-scene) { position: relative; z-index: 1; }
+  .hero > *:not(#hero-scene):not(.hero-aurora) { position: relative; z-index: 1; }
+  /* Three stacked aurora layers, crossfaded over the loop: the mix runs
+     hot (red), swings low (blue), then settles on calm mids (green). */
+  .hero-aurora, .hero-aurora .aur { position: absolute; inset: 0; pointer-events: none; }
+  .hero-aurora .aur {
+    inset: -15%;
+    opacity: 0;
+    filter: blur(60px) saturate(1.3);
+  }
+  .aur-red { background: radial-gradient(55% 70% at 50% 35%, color-mix(in srgb, #d1603a 55%, transparent) 0%, transparent 70%); }
+  .aur-blue { background: radial-gradient(55% 70% at 45% 40%, color-mix(in srgb, #3d7ab5 55%, transparent) 0%, transparent 70%); }
+  .aur-green { background: radial-gradient(55% 70% at 50% 38%, color-mix(in srgb, #3f9179 55%, transparent) 0%, transparent 70%); }
   #hero-scene rect, #hero-scene .helper, #hero-scene .wave-arm {
     transform-box: fill-box;
   }
   /* Gentle idle loops only: the field breathes, the people bob and wave.
      Everything freezes cleanly under prefers-reduced-motion. */
-  #hero-scene .bar-sway { transform-origin: bottom; animation: tan-sway var(--dur, 4s) ease-in-out infinite; animation-delay: var(--d, 0s); }
+  #hero-scene .bar { transform-origin: bottom; }
   #hero-scene .helper-bob { animation: tan-bob 2.8s ease-in-out infinite; animation-delay: var(--d, 0s); }
   #hero-scene .wave-arm { transform-origin: left bottom; animation: tan-wave 1.7s ease-in-out infinite; animation-delay: var(--d, 0s); }
   #hero-scene .wave-arm-flip { transform-origin: right bottom; }
-  @keyframes tan-sway {
-    0%, 100% { transform: scaleY(1); }
-    50%      { transform: scaleY(1.05); }
-  }
   @keyframes tan-bob {
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(var(--amp, -2.5px)); }
@@ -77,7 +84,8 @@
     50%      { transform: rotate(22deg); }
   }
   @media (prefers-reduced-motion: reduce) {
-    #hero-scene .bar-sway, #hero-scene .helper-bob, #hero-scene .wave-arm { animation: none; }
+    #hero-scene .helper-bob, #hero-scene .wave-arm { animation: none; }
+    .aur-green { opacity: 0.85; }
   }
   .hero-icon {
     width: 88px;
@@ -206,6 +214,8 @@
   input[type="file"] { font: inherit; color: var(--muted); }
   #file-status, #live-status { font-size: 0.9rem; color: var(--muted); }
   canvas.wave { width: 100%; height: 90px; display: block; margin-top: 0.5rem; border-radius: 6px; background: color-mix(in srgb, var(--accent) 6%, var(--card)); }
+  canvas.demo-wave { height: 46px; margin-top: 0.4rem; }
+  .demo-wave-hint { font-size: 0.85rem; }
   .wave-legend { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
   .wave-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.3rem; }
   footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
@@ -298,13 +308,20 @@
 <body>
 <div id="bg-layer"></div>
 <div class="hero">
+  <div class="hero-aurora" aria-hidden="true">
+    <div class="aur aur-red"></div>
+    <div class="aur aur-blue"></div>
+    <div class="aur aur-green"></div>
+  </div>
   <svg id="hero-scene" aria-hidden="true" viewBox="0 0 900 320" preserveAspectRatio="xMidYMax slice">
     <!-- The bar field, generated into #wave-feed by the script at the
          bottom of the page, with a tiny crew living on it: two green (mid)
          people reaching down to a blue (low) person, and a green person
          waving up at an orange (high) person, who waves back. People are
          drawn at a local origin (feet at 0,0) and parked on their bars'
-         tops by the same script; all motion is gentle CSS loops. -->
+         tops by the same script. The whole thing loops: bars sweep in
+         left to right, settle, hold, fade out, begin again. -->
+    <g class="scene-fade">
     <g id="wave-feed"></g>
 
     <!-- Blue person, arms up to the greens reaching down. -->
@@ -369,6 +386,7 @@
         <line x1="0" y1="-10" x2="4" y2="0" stroke-width="3.5"></line>
       </g>
     </g>
+    </g>
   </svg>
   <img class="hero-icon" src="icon.svg" alt="TAN">
   <h1>TAN</h1>
@@ -413,20 +431,24 @@
   <div class="card">
     <h3>Before</h3>
     <p>Dialogue sits ~26 dB below the action - the "constantly grabbing the remote" experience.</p>
-    <audio controls preload="none" src="audio/demo-input.wav"></audio>
+    <audio controls preload="none" id="demo-in" src="audio/demo-input.wav"></audio>
+    <canvas class="wave demo-wave" id="wave-demo-in" width="600" height="46" hidden></canvas>
   </div>
 
   <div class="card">
     <h3>After TAN (live mode)</h3>
     <p>Processed in real time with 8 ms of latency, the way system-wide audio would be. Big cuts complete inside the onset transient itself, where the ear can't track them.</p>
-    <audio controls preload="none" src="audio/demo-output.wav"></audio>
+    <audio controls preload="none" id="demo-out" src="audio/demo-output.wav"></audio>
+    <canvas class="wave demo-wave" id="wave-demo-out" width="600" height="46" hidden></canvas>
   </div>
 
   <div class="card">
     <h3>After TAN (two-pass)</h3>
     <p>For files, TAN analyzes everything first: gain ramps down <em>ahead of</em> each loud onset, so corrections are completely inaudible. Zero reactive artifacts.</p>
-    <audio controls preload="none" src="audio/demo-output-twopass.wav"></audio>
+    <audio controls preload="none" id="demo-two" src="audio/demo-output-twopass.wav"></audio>
+    <canvas class="wave demo-wave" id="wave-demo-two" width="600" height="46" hidden></canvas>
   </div>
+  <p class="section-lead demo-wave-hint" hidden id="demo-wave-hint">Click a wave to jump around - gray is the untouched input, color is that player's audio, and the bright strip along the bottom is where TAN worked hardest.</p>
 
   <p class="section-lead">Loudness range - how far apart the quiet and loud parts sit:</p>
   <div class="stats">
@@ -538,8 +560,11 @@
         document.getElementById("file-original").src = URL.createObjectURL(file);
         document.getElementById("file-processed").src = URL.createObjectURL(blob);
         document.getElementById("file-result").hidden = false;
-        drawWaveform(document.getElementById("file-wave"), originalSnapshot, mem, channels, getComputedStyle(document.documentElement).getPropertyValue("--accent"));
-        fileStatus.textContent = "Done - compare below. Nothing left your machine.";
+        const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+        const fileWave = document.getElementById("file-wave");
+        drawWaveform(fileWave, originalSnapshot, mem, channels, accent);
+        wireWaveSeek(fileWave, document.getElementById("file-processed"), accent);
+        fileStatus.textContent = "Done - compare below. Click the wave to jump around; the bright strip along the bottom is where TAN worked hardest.";
       } catch (err) {
         fileStatus.textContent = "Couldn't process that file: " + err.message;
       }
@@ -604,9 +629,116 @@
         ctx.globalAlpha = 1;
       }
 
-      draw(envelope(original), "#98968f", 0.5);
-      draw(envelope(processed), color, 0.85);
+      if (!processed) {
+        draw(envelope(original), color, 0.85);
+        return;
+      }
+      const envO = envelope(original);
+      const envP = envelope(processed);
+      draw(envO, "#98968f", 0.5);
+      draw(envP, color, 0.85);
+
+      // Heat strip along the bottom: how much TAN changed the amplitude
+      // in each column, so the biggest before/after moments are easy to
+      // find at a glance.
+      const diffs = new Float32Array(w);
+      let maxDiff = 0;
+      for (let x = 0; x < w; x++) {
+        diffs[x] = Math.abs((envP.maxs[x] - envP.mins[x]) - (envO.maxs[x] - envO.mins[x]));
+        if (diffs[x] > maxDiff) maxDiff = diffs[x];
+      }
+      if (maxDiff > 0) {
+        ctx.fillStyle = color;
+        for (let x = 0; x < w; x++) {
+          const t = diffs[x] / maxDiff;
+          if (t < 0.12) continue;
+          ctx.globalAlpha = 0.25 + 0.75 * t;
+          ctx.fillRect(x, h - 4, 1, 4);
+        }
+        ctx.globalAlpha = 1;
+      }
     }
+
+    // SoundCloud-style seeking: click the wave to jump there (and play), a
+    // playhead tracks position.
+    function wireWaveSeek(canvas, el, color) {
+      const base = document.createElement("canvas");
+      base.width = canvas.width;
+      base.height = canvas.height;
+      base.getContext("2d").drawImage(canvas, 0, 0);
+      const ctx = canvas.getContext("2d");
+      canvas.style.cursor = "pointer";
+      let rafId = null;
+      function paint() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(base, 0, 0);
+        if (el.duration) {
+          const x = (el.currentTime / el.duration) * canvas.width;
+          ctx.fillStyle = color;
+          ctx.globalAlpha = 0.14;
+          ctx.fillRect(0, 0, x, canvas.height);
+          ctx.globalAlpha = 0.9;
+          ctx.fillRect(x - 1, 0, 2, canvas.height);
+          ctx.globalAlpha = 1;
+        }
+        rafId = !el.paused ? requestAnimationFrame(paint) : null;
+      }
+      ["play", "pause", "seeked", "ended", "timeupdate"].forEach((ev) => {
+        el.addEventListener(ev, () => { if (!rafId) paint(); });
+      });
+      canvas.addEventListener("click", (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+        if (el.duration) el.currentTime = frac * el.duration;
+        el.play().catch(() => {});
+        if (!rafId) paint();
+      });
+    }
+
+    // ---- Demo player waveforms: drawn on first play (nothing downloads
+    // until someone actually engages), each seekable, the two processed
+    // ones overlaid on the untouched input so the differences and where
+    // to expect them are visible up front. ----
+    (function () {
+      const items = [
+        { el: document.getElementById("demo-in"), canvas: document.getElementById("wave-demo-in"), overlay: false },
+        { el: document.getElementById("demo-out"), canvas: document.getElementById("wave-demo-out"), overlay: true },
+        { el: document.getElementById("demo-two"), canvas: document.getElementById("wave-demo-two"), overlay: true },
+      ];
+      if (items.some((d) => !d.el || !d.canvas)) return;
+      let started = false;
+      async function decodeToInterleaved(url) {
+        const buf = await fetch(url).then((r) => r.arrayBuffer());
+        const ctx = new AudioContext();
+        const d = await ctx.decodeAudioData(buf);
+        ctx.close();
+        const inter = new Float32Array(d.length * d.numberOfChannels);
+        for (let ch = 0; ch < d.numberOfChannels; ch++) {
+          const cd = d.getChannelData(ch);
+          for (let i = 0; i < d.length; i++) inter[i * d.numberOfChannels + ch] = cd[i];
+        }
+        return { inter, channels: d.numberOfChannels };
+      }
+      async function buildWaves() {
+        if (started) return;
+        started = true;
+        try {
+          const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+          const input = await decodeToInterleaved(items[0].el.src);
+          for (const item of items) {
+            const own = item.overlay ? await decodeToInterleaved(item.el.src) : input;
+            item.canvas.hidden = false;
+            if (item.overlay) drawWaveform(item.canvas, input.inter, own.inter, own.channels, accent);
+            else drawWaveform(item.canvas, own.inter, null, own.channels, accent);
+            wireWaveSeek(item.canvas, item.el, accent);
+          }
+          document.getElementById("demo-wave-hint").hidden = false;
+        } catch (e) {
+          started = false; // let a later play retry
+        }
+      }
+      items.forEach((d) => d.el.addEventListener("play", buildWaves, { once: false }));
+    })();
 
     // ---- Live mode: tab audio through the streaming engine ----
     const liveBtn = document.getElementById("live-btn");
@@ -683,12 +815,17 @@
 
     // ---- Hero background: the bar field, stamped out once here (seeded,
     // so the layout is stable across loads), with the tiny crew parked on
-    // top of their bars. Bars breathe and people bob/wave via gentle CSS
-    // loops; nothing here animates. The five story bars stay static so
-    // their people never drift off their perches. ----
+    // top of their bars. One 14s story loop, driven by the Web Animations
+    // API so every bar can have its own offsets on a shared clock: bars
+    // sweep in left to right with a little overshoot, breathe while the
+    // aurora walks red -> blue -> calm green, then the whole wave fades
+    // out and it starts again. Reduced motion gets the settled shape and
+    // the calm green, no loop. ----
     (function () {
       const feed = document.getElementById("wave-feed");
       if (!feed) return;
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const LOOP = { duration: 14000, iterations: Infinity };
       const H = 320, W = 900;               // hero-scene viewBox
       const BASE = H * 0.82, MAXH = H * 0.62, N = 56;
       const barW = W / N;
@@ -699,16 +836,15 @@
       };
       const COLOR = { high: "#d1603a", low: "#3d7ab5", mid: "#3f9179" };
       const ALPHA = { high: 0.7, low: 0.7, mid: 0.45 };
-      const STORY = [3, 5, 8, 41, 42];      // bars with people on them
       const tops = {};
+      const inAt = (i) => 0.02 + (i / N) * 0.2; // the left-to-right sweep
       for (let i = 0; i < N; i++) {
         const role = i % 7 === 0 ? "high" : i % 5 === 0 ? "low" : "mid";
         const frac = role === "high" ? 0.6 + rand() * 0.18 : role === "low" ? 0.24 + rand() * 0.12 : 0.38 + rand() * 0.14;
         const h = frac * MAXH;
         tops[i] = BASE - h;
-        const story = STORY.includes(i);
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        rect.setAttribute("class", story ? "bar" : "bar bar-sway");
+        rect.setAttribute("class", "bar");
         rect.setAttribute("x", (i * barW + barW * 0.18).toFixed(1));
         rect.setAttribute("y", tops[i].toFixed(1));
         rect.setAttribute("width", (barW * 0.64).toFixed(1));
@@ -716,18 +852,78 @@
         rect.setAttribute("rx", 3);
         rect.setAttribute("fill", COLOR[role]);
         rect.setAttribute("fill-opacity", ALPHA[role]);
-        if (!story) {
-          rect.style.setProperty("--d", (-rand() * 4).toFixed(2) + "s");
-          rect.style.setProperty("--dur", (3.2 + rand() * 1.8).toFixed(2) + "s");
-        }
         feed.appendChild(rect);
+        if (!reduce) {
+          const amp = 1.03 + rand() * 0.04;
+          rect.animate(
+            [
+              { transform: "scaleY(0)", offset: 0 },
+              { transform: "scaleY(0)", offset: inAt(i), easing: "cubic-bezier(0.34, 1.4, 0.64, 1)" },
+              { transform: "scaleY(1)", offset: inAt(i) + 0.05, easing: "ease-in-out" },
+              { transform: `scaleY(${amp.toFixed(3)})`, offset: 0.55, easing: "ease-in-out" },
+              { transform: "scaleY(1)", offset: 0.75 },
+              { transform: "scaleY(1)", offset: 1 },
+            ],
+            LOOP
+          );
+        }
       }
-      // Park each person on their bar's top edge.
+      // Park each person on their bar's top edge; they fade in just after
+      // their bar arrives and ride the same clock.
       document.querySelectorAll("#hero-scene .helper-slot").forEach((slot) => {
         const i = Number(slot.dataset.bar);
         const cx = i * barW + barW * 0.18 + (barW * 0.64) / 2;
         slot.setAttribute("transform", `translate(${cx.toFixed(1)}, ${tops[i].toFixed(1)})`);
+        if (!reduce) {
+          slot.animate(
+            [
+              { opacity: 0, offset: 0 },
+              { opacity: 0, offset: inAt(i) + 0.05 },
+              { opacity: 1, offset: inAt(i) + 0.1 },
+              { opacity: 1, offset: 1 },
+            ],
+            LOOP
+          );
+        }
       });
+      if (reduce) return;
+      // The wave's exit, and the aurora's walk through the palette.
+      document.querySelector("#hero-scene .scene-fade").animate(
+        [
+          { opacity: 1, offset: 0 },
+          { opacity: 1, offset: 0.88 },
+          { opacity: 0, offset: 0.96 },
+          { opacity: 0, offset: 1 },
+        ],
+        LOOP
+      );
+      const aurora = (sel, frames) => {
+        const el = document.querySelector(sel);
+        if (el) el.animate(frames, LOOP);
+      };
+      aurora(".aur-red", [
+        { opacity: 0, offset: 0 },
+        { opacity: 0.9, offset: 0.1 },
+        { opacity: 0.9, offset: 0.24 },
+        { opacity: 0, offset: 0.38 },
+        { opacity: 0, offset: 1 },
+      ]);
+      aurora(".aur-blue", [
+        { opacity: 0, offset: 0 },
+        { opacity: 0, offset: 0.24 },
+        { opacity: 0.9, offset: 0.38 },
+        { opacity: 0.9, offset: 0.5 },
+        { opacity: 0, offset: 0.62 },
+        { opacity: 0, offset: 1 },
+      ]);
+      aurora(".aur-green", [
+        { opacity: 0, offset: 0 },
+        { opacity: 0, offset: 0.5 },
+        { opacity: 0.85, offset: 0.66 },
+        { opacity: 0.85, offset: 0.88 },
+        { opacity: 0, offset: 0.96 },
+        { opacity: 0, offset: 1 },
+      ]);
     })();
 
     // ---- Illustrative explainer waveform: click a zone to learn about it ----
