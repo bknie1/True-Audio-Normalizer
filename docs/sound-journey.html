@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TAN across every kind of content</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#b3552e">
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --ink: #1c1c1a;
+    --muted: #6b6a66;
+    --card: #ffffff;
+    --edge: #e3e1dc;
+    --accent: #b3552e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513;
+      --ink: #e8e6e1;
+      --muted: #98968f;
+      --card: #201f1c;
+      --edge: #34322d;
+      --accent: #e0764a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  h1 { font-size: 2rem; margin: 0 0 0.5rem; letter-spacing: -0.02em; }
+  p.lead { color: var(--muted); margin: 0 0 2.5rem; }
+  a { color: var(--accent); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1.25rem 0;
+  }
+  .card h2 { margin: 0 0 0.25rem; font-size: 1.15rem; }
+  .card .desc { color: var(--muted); font-size: 0.92rem; margin: 0 0 1rem; }
+  audio { width: 100%; margin: 0.4rem 0; }
+  .row-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0.75rem 0 0.2rem; }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 1rem;
+    font: inherit;
+    cursor: pointer;
+    margin-top: 0.5rem;
+  }
+  button:hover { filter: brightness(1.1); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .status { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; min-height: 1.2em; }
+  .credit { font-size: 0.78rem; color: var(--muted); margin-top: 0.75rem; border-top: 1px solid var(--edge); padding-top: 0.6rem; }
+  .credit a { color: inherit; text-decoration: underline; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="index.html">&larr; Back to TAN</a></p>
+  <h1>Across every kind of content</h1>
+  <p class="lead">Four real recordings, four completely different mixing problems.
+  Nothing is preloaded or autoplayed - press "Run through TAN" on each to hear
+  the two-pass result for yourself, processed live in your browser.</p>
+
+  <div class="card">
+    <h2>Music</h2>
+    <p class="desc">A 1953 studio recording: voice and piano, close-mic'd and dry.</p>
+    <div class="row-label">Original</div>
+    <audio controls preload="none" id="orig-music" src="audio/samples/music-lehrer.mp3"></audio>
+    <div class="row-label">After TAN</div>
+    <audio controls id="proc-music"></audio>
+    <div><button data-key="music">Run through TAN</button></div>
+    <div class="status" id="status-music"></div>
+    <div class="credit">"Songs By Tom Lehrer" (1953). Tom Lehrer released all rights to his recordings into the public domain.
+    <a href="https://archive.org/details/songs-by-tom-lehrer_202509" target="_blank" rel="noopener">Source</a>.</div>
+  </div>
+
+  <div class="card">
+    <h2>Movie</h2>
+    <p class="desc">An animated short: dialogue, foley, and a full score mixed together.</p>
+    <div class="row-label">Original</div>
+    <video controls preload="none" id="orig-movie" src="audio/samples/movie-caminandes.ogv" style="width:100%;border-radius:6px;"></video>
+    <div class="row-label">After TAN (audio)</div>
+    <audio controls id="proc-movie"></audio>
+    <div><button data-key="movie">Run through TAN</button></div>
+    <div class="status" id="status-movie"></div>
+    <div class="credit">"Caminandes: Llama Drama" (2013), Blender Foundation, licensed CC BY 3.0.
+    <a href="https://archive.org/details/caminandes-1-llama-drama" target="_blank" rel="noopener">Source</a>.</div>
+  </div>
+
+  <div class="card">
+    <h2>Game</h2>
+    <p class="desc">An 8-bit battle theme: chiptune square waves, no natural dynamics to speak of.</p>
+    <div class="row-label">Original</div>
+    <audio controls preload="none" id="orig-game" src="audio/samples/game-8bit.wav"></audio>
+    <div class="row-label">After TAN</div>
+    <audio controls id="proc-game"></audio>
+    <div><button data-key="game">Run through TAN</button></div>
+    <div class="status" id="status-game"></div>
+    <div class="credit">"8 Bit Battle Theme" by celestialghost8, CC0 (public domain).
+    <a href="https://opengameart.org/content/8-bit-battle-theme-famitracker" target="_blank" rel="noopener">Source</a>.</div>
+  </div>
+
+  <div class="card">
+    <h2>Podcast / spoken word</h2>
+    <p class="desc">A real two-person radio interview - natural conversational volume swings, laughter, cross-talk.</p>
+    <div class="row-label">Original</div>
+    <audio controls preload="none" id="orig-podcast" src="audio/samples/podcast-interview.mp3"></audio>
+    <div class="row-label">After TAN</div>
+    <audio controls id="proc-podcast"></audio>
+    <div><button data-key="podcast">Run through TAN</button></div>
+    <div class="status" id="status-podcast"></div>
+    <div class="credit">Creative Commons Aotearoa New Zealand interview, Radio Active "Caffeine and Aspirin" (2013), CC BY 3.0 NZ.
+    <a href="https://archive.org/details/CreativeCommonsInterviewRadioActive" target="_blank" rel="noopener">Source</a>.</div>
+  </div>
+
+  <footer>
+    All four sources are public domain or Creative Commons licensed, credited above.
+    Everything here runs client-side in WebAssembly; nothing is uploaded.
+    <a href="index.html">Back to TAN</a>
+  </footer>
+
+  <script>
+    const wasmBytesPromise = fetch("tan.wasm", { cache: "no-cache" }).then(r => r.arrayBuffer());
+
+    function encodeWav(interleaved, sampleRate, channels) {
+      const dataLen = interleaved.length * 2;
+      const buf = new ArrayBuffer(44 + dataLen);
+      const v = new DataView(buf);
+      const str = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+      str(0, "RIFF"); v.setUint32(4, 36 + dataLen, true); str(8, "WAVE");
+      str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+      v.setUint16(22, channels, true); v.setUint32(24, sampleRate, true);
+      v.setUint32(28, sampleRate * channels * 2, true);
+      v.setUint16(32, channels * 2, true); v.setUint16(34, 16, true);
+      str(36, "data"); v.setUint32(40, dataLen, true);
+      for (let i = 0; i < interleaved.length; i++) {
+        const s = Math.max(-1, Math.min(1, interleaved[i]));
+        v.setInt16(44 + i * 2, s * 32767, true);
+      }
+      return new Blob([buf], { type: "audio/wav" });
+    }
+
+    document.querySelectorAll("button[data-key]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const key = btn.dataset.key;
+        const status = document.getElementById(`status-${key}`);
+        const origEl = document.getElementById(`orig-${key}`);
+        const procEl = document.getElementById(`proc-${key}`);
+        btn.disabled = true;
+        try {
+          status.textContent = "Fetching and decoding...";
+          const resp = await fetch(origEl.currentSrc || origEl.src);
+          const arrayBuf = await resp.arrayBuffer();
+          const ctx = new AudioContext();
+          const decoded = await ctx.decodeAudioData(arrayBuf);
+          ctx.close();
+          const channels = decoded.numberOfChannels;
+          const frames = decoded.length;
+
+          status.textContent = "Running TAN two-pass...";
+          const { instance } = await WebAssembly.instantiate(await wasmBytesPromise, {});
+          const wasm = instance.exports;
+          const len = frames * channels;
+          const ptr = wasm.tan_alloc(len);
+          let mem = new Float32Array(wasm.memory.buffer, ptr, len);
+          for (let ch = 0; ch < channels; ch++) {
+            const data = decoded.getChannelData(ch);
+            for (let i = 0; i < frames; i++) mem[i * channels + ch] = data[i];
+          }
+          wasm.tan_normalize_offline(ptr, len, decoded.sampleRate, channels, 0);
+          mem = new Float32Array(wasm.memory.buffer, ptr, len);
+
+          status.textContent = "Encoding...";
+          const blob = encodeWav(mem, decoded.sampleRate, channels);
+          procEl.src = URL.createObjectURL(blob);
+          procEl.play().catch(() => {});
+          status.textContent = "Done.";
+        } catch (err) {
+          status.textContent = "Couldn't process: " + err.message;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  </script>
+</main>
+</body>
+</html>
