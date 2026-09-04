@@ -41,33 +41,27 @@
   p.lead { color: var(--muted); max-width: 640px; margin: 0 0 3rem; }
 
   .row {
-    position: relative;
-    overflow: hidden;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 3rem;
     align-items: center;
     padding: 4.5rem max(1.25rem, calc((100% - 1100px) / 2));
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+    transition: opacity 0.65s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  .row::before {
-    content: "";
-    position: absolute;
-    inset: -15%;
-    background:
-      radial-gradient(32% 45% at 18% 22%, color-mix(in srgb, var(--accent-row) 45%, transparent), transparent 72%),
-      radial-gradient(38% 50% at 85% 75%, color-mix(in srgb, var(--accent-row) 35%, transparent), transparent 70%),
-      radial-gradient(26% 32% at 60% 10%, color-mix(in srgb, var(--accent-row) 28%, transparent), transparent 75%),
-      radial-gradient(30% 40% at 40% 95%, color-mix(in srgb, var(--accent-row) 24%, transparent), transparent 75%);
-    filter: blur(50px);
-    z-index: 0;
-    pointer-events: none;
-  }
-  .row > * { position: relative; z-index: 1; }
+  .row.in { opacity: 1; transform: translateY(0) scale(1); }
+
+  /* One page-sized glow, fixed to the viewport so it "follows" scrolling,
+     oversized and heavily blurred so its edge is never visible. Its color
+     is repainted on scroll (see script) to shift hue between sections. */
   #bg-layer {
     position: fixed;
-    inset: 0;
+    inset: -30vmax;
     z-index: -3;
-    background: var(--bg);
+    background: radial-gradient(55% 55% at 50% 42%, var(--glow, transparent) 0%, transparent 70%);
+    filter: blur(110px);
+    pointer-events: none;
   }
   .row:nth-child(even) .art { order: 2; }
   .row .art {
@@ -286,10 +280,10 @@
       return `rgb(${mix[0]}, ${mix[1]}, ${mix[2]})`;
     }
 
-    // Mostly-neutral base with color as emphasis, not full saturation
-    // washing the whole viewport: each row's peak is only a 20% mix of its
-    // accent into the neutral, keeping contrast (and readability) intact.
-    const PEAK_INTENSITY = 0.2;
+    // A real, visible aurora - but it's a soft blurred glow over solid
+    // black, not a flat fill, so this can run hotter than a flat wash
+    // could while staying readable.
+    const PEAK_INTENSITY = 0.4;
     const anchors = [
       { el: document.querySelector(".top"), color: neutral },
       ...rows.map((el) => {
@@ -313,7 +307,7 @@
       const b = anchors[Math.min(anchors.length - 1, i + 1)];
       const span = center(b.el) - center(a.el);
       const t = span > 0 ? Math.min(1, Math.max(0, (pos - center(a.el)) / span)) : 0;
-      bgLayer.style.background = lerp(a.color, b.color, t);
+      bgLayer.style.setProperty("--glow", lerp(a.color, b.color, t));
     }
 
     window.addEventListener(
@@ -329,6 +323,20 @@
     window.addEventListener("resize", update);
     update();
   })();
+
+  // Pop-in reveal as each row scrolls into view.
+  const rowObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("in");
+          rowObserver.unobserve(entry.target);
+        }
+      }
+    },
+    { threshold: 0.2 }
+  );
+  document.querySelectorAll(".row").forEach((el) => rowObserver.observe(el));
 
   // Starting any one player pauses every other audio/video on the page, so
   // the four demo clips never overlap into a jumbled mess.

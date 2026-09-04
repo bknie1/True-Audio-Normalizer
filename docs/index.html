@@ -97,8 +97,8 @@
     justify-content: center;
     padding: 4rem 0;
     opacity: 0;
-    transform: translateY(18px);
-    transition: opacity 0.6s ease, transform 0.6s ease;
+    transform: translateY(24px) scale(0.97);
+    transition: opacity 0.65s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1);
     background: linear-gradient(
       to bottom,
       transparent 0%,
@@ -107,7 +107,7 @@
       transparent 100%
     );
   }
-  .zone.in { opacity: 1; transform: translateY(0); }
+  .zone.in { opacity: 1; transform: translateY(0) scale(1); }
   .zone::before {
     content: "";
     position: absolute;
