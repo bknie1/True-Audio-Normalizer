@@ -33,8 +33,25 @@
     color: var(--ink);
     font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  main { max-width: 780px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
-  h1 { font-size: 2.1rem; margin: 0 0 0.25rem; letter-spacing: -0.02em; }
+  main { max-width: 780px; margin: 0 auto; padding: 0 1.25rem 5rem; }
+  .hero {
+    text-align: center;
+    padding: 4rem 1.25rem 3rem;
+    margin-bottom: 2.5rem;
+    background:
+      radial-gradient(60% 90% at 50% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
+      var(--bg);
+    border-bottom: 1px solid var(--edge);
+  }
+  .hero-icon {
+    width: 88px;
+    height: 88px;
+    border-radius: 20px;
+    box-shadow: 0 16px 36px -14px color-mix(in srgb, var(--accent) 70%, transparent);
+    margin-bottom: 1.5rem;
+  }
+  h1 { font-size: 2.6rem; margin: 0 0 0.5rem; letter-spacing: -0.03em; }
+  .hero .tagline { max-width: 34rem; margin: 0 auto; font-size: 1.05rem; }
   .tagline { color: var(--muted); margin: 0 0 2.5rem; }
   h2 { font-size: 1.25rem; margin: 2.75rem 0 0.75rem; }
   p { margin: 0.75rem 0; }
@@ -86,10 +103,12 @@
 </style>
 </head>
 <body>
-<main>
+<div class="hero">
+  <img class="hero-icon" src="icon.svg" alt="TAN">
   <h1>TAN</h1>
   <p class="tagline">True Audio Normalizer - fixing poorly mixed sound in real time. Open source, no metadata cheats, no walled garden.</p>
-
+</div>
+<main>
   <p>I kept riding the volume remote through every movie: up for the whispers,
   down for the explosions. The industry already solved this once - Dolby Volume
   and friends do it by baking loudness metadata into the mix at mastering time,
