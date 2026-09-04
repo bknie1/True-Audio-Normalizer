@@ -90,7 +90,11 @@
 
   .zone {
     position: relative;
-    padding: 3rem 0 0.5rem;
+    min-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 4rem 0;
     opacity: 0;
     transform: translateY(18px);
     transition: opacity 0.6s ease, transform 0.6s ease;
@@ -99,12 +103,12 @@
   .zone::before {
     content: "";
     position: absolute;
-    top: -20vh;
+    top: 50%;
     left: 50%;
     width: 140%;
-    height: 60vh;
-    transform: translateX(-50%);
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--zone) 22%, transparent), transparent 70%);
+    height: 85%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--zone) 20%, transparent), transparent 70%);
     filter: blur(10px);
     z-index: -1;
     pointer-events: none;
