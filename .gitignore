@@ -1,3 +1,4 @@
 /target
 *.local
 /demo-*.wav
+/.claude/settings.local.json
