@@ -20,8 +20,15 @@ pub fn normalize_offline(samples: &mut Vec<f32>, sample_rate: u32, channels: usi
         return;
     }
 
-    // Pass 1: loudness per hop.
+    // Pass 1: loudness per hop. The meter needs a few hundred ms to settle
+    // from cold, and offline there's no reason the file's opening should pay
+    // for that - warm it up on the first 400 ms before the recorded pass so
+    // the gain curve is already correct at sample zero.
     let mut meter = LoudnessMeter::new(sample_rate, channels);
+    let warmup_frames = (sample_rate as usize * 2 / 5).min(frames);
+    for frame in samples[..warmup_frames * channels].chunks_exact(channels) {
+        meter.process_frame(frame);
+    }
     let mut loudness = Vec::with_capacity(frames / hop + 2);
     for (i, frame) in samples.chunks_exact(channels).enumerate() {
         let db = meter.process_frame(frame);
