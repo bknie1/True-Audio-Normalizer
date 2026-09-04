@@ -100,6 +100,37 @@
   canvas.wave { width: 100%; height: 90px; display: block; margin-top: 0.75rem; border-radius: 6px; background: color-mix(in srgb, var(--accent-row, var(--accent)) 6%, var(--card)); }
   .wave-legend { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
   .wave-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.3rem; }
+  .song-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 0.75rem 0 1.1rem;
+  }
+  .song-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    width: 76px;
+    min-height: 64px;
+    padding: 0.5rem 0.35rem;
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+  }
+  .song-btn svg { width: 22px; height: 22px; flex: none; }
+  .song-btn .song-label { font-size: 0.68rem; line-height: 1.15; text-align: center; }
+  .song-btn:hover { border-color: var(--accent-row, var(--accent)); color: var(--ink); }
+  .song-btn:focus-visible { outline: 2px solid var(--accent-row, var(--accent)); outline-offset: 2px; }
+  .song-btn.active {
+    background: color-mix(in srgb, var(--accent-row, var(--accent)) 16%, var(--card));
+    border-color: var(--accent-row, var(--accent));
+    color: var(--accent-row, var(--accent));
+  }
   .credit { font-size: 0.76rem; color: var(--muted); margin-top: 0.75rem; }
   .credit a { color: inherit; }
   footer { max-width: 900px; margin: 0 auto; padding: 2rem 1.25rem 4rem; color: var(--muted); font-size: 0.85rem; }
@@ -134,14 +165,41 @@
   </div>
   <div>
     <div class="challenge">Music</div>
-    <h2>A comedian at a piano, 1966</h2>
+    <h2 id="music-title">A comedian at a piano, 1966</h2>
     <p class="desc">Just voice and piano, recorded dry and close-mic'd, no
     post-production riding the fader. The dynamics are entirely
     human - a whispered aside, then a belted punchline, on purpose, because
     that's the joke. This is about as close to raw "as-performed" range as
-    a music recording gets.</p>
+    a music recording gets. Same performer, same piano - pick any track,
+    the mixing problem is identical.</p>
+    <div class="song-picker" id="song-picker" role="group" aria-label="Choose a song">
+      <button class="song-btn active" data-song="dope-peddler">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v18M8 7.5c0-1.5 1.5-2.5 4-2.5s4 1 4 2.5-1.5 2.5-4 2.5-4 1-4 2.5 1.5 2.5 4 2.5 4-1 4-2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span class="song-label">Dope Peddler</span>
+      </button>
+      <button class="song-btn" data-song="fight-fiercely">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        <span class="song-label">Fight Fiercely</span>
+      </button>
+      <button class="song-btn" data-song="hunting-song">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+        <span class="song-label">Hunting Song</span>
+      </button>
+      <button class="song-btn" data-song="be-prepared">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.1 5.9-.8z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <span class="song-label">Be Prepared</span>
+      </button>
+      <button class="song-btn" data-song="lobachevsky">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 5h12l-6.5 7L18 19H6l6.5-7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        <span class="song-label">Lobachevsky</span>
+      </button>
+      <button class="song-btn" data-song="hold-your-hand">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2C4.5 6.7 6.8 4.5 9.3 4.5c1.2 0 2.3.6 2.7 1.5.4-.9 1.5-1.5 2.7-1.5 2.5 0 4.8 2.2 4.8 5.3C19.5 15.4 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        <span class="song-label">Hold Your Hand</span>
+      </button>
+    </div>
     <div class="row-label">Original</div>
-    <audio controls preload="none" id="orig-music" src="audio/samples/music-lehrer.mp3"></audio>
+    <audio controls preload="none" id="orig-music" src="audio/samples/music-lehrer-dope-peddler.mp3"></audio>
     <div id="result-music" hidden>
       <div class="row-label">After TAN</div>
       <audio controls id="proc-music"></audio>
@@ -150,7 +208,7 @@
     <div class="wave-legend" id="wave-legend-music" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN</div>
     <div><button data-key="music">Run through TAN</button></div>
     <div class="status" id="status-music"></div>
-    <div class="credit">"The Old Dope Peddler" (1966 recording). Tom Lehrer
+    <div class="credit">From "Songs by Tom Lehrer" (1966 recording). Tom Lehrer
     released all rights to his recordings into the public domain.
     <a href="https://archive.org/details/Songs-By-Tom-Lehrer-1966" target="_blank" rel="noopener">Source</a>.</div>
   </div>
@@ -364,6 +422,33 @@
       allMedia.forEach((other) => {
         if (other !== el && !other.paused) other.pause();
       });
+    });
+  });
+
+  // ---- Song picker: switch which Lehrer track "Original" points at ----
+  const songTitles = {
+    "dope-peddler": "A comedian at a piano, 1966",
+    "fight-fiercely": "A mock fight song, deliberately too polite",
+    "hunting-song": "A hapless hunter, played for laughs",
+    "be-prepared": "A gentle jab at the Boy Scouts",
+    "lobachevsky": "A mathematician's guide to plagiarism",
+    "hold-your-hand": "A love song, with a dark little twist",
+  };
+  const origMusic = document.getElementById("orig-music");
+  const musicTitle = document.getElementById("music-title");
+  document.querySelectorAll(".song-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.song;
+      document.querySelectorAll(".song-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      origMusic.pause();
+      origMusic.src = `audio/samples/music-lehrer-${key}.mp3`;
+      musicTitle.textContent = songTitles[key];
+      // The processed result and waveform belong to whichever track was
+      // last run through TAN - stale once the source track changes.
+      document.getElementById("result-music").hidden = true;
+      document.getElementById("wave-music").hidden = true;
+      document.getElementById("wave-legend-music").hidden = true;
+      document.getElementById("status-music").textContent = "";
     });
   });
 
