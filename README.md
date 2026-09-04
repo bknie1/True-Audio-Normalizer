@@ -10,8 +10,9 @@ Hear it, run it on your own files, or pipe live browser-tab audio (YouTube inclu
 through it at **[bknie1.github.io/TAN](https://bknie1.github.io/TAN/)**. Everything
 runs client-side; nothing is uploaded.
 
-New to audio processing or Rust? Start with **[TAN, explained like you're five](ELI5.md)** -
-the no-jargon version of everything below.
+**[Install it](INSTALL.md)** - Windows, macOS, Linux, or mobile as an installable web app.
+New to audio processing or Rust? Start with **[TAN, minus the jargon](ELI5.md)** and
+[GLOSSARY.md](GLOSSARY.md) for terms like FFI, WASAPI, and C ABI as they come up below.
 
 Unlike the commercial equivalents (Dolby Volume and friends), TAN works blind - no
 loudness metadata baked in at mastering time, no licensed decoder, no walled garden.
@@ -25,9 +26,10 @@ sharing one build and one lockfile. The split is the architecture:
 
 | Crate | What it is |
 |---|---|
-| [`tan-core`](tan-core/src) | The engine. Pure sample-buffer math, no I/O, no OS calls - which is why the same code runs natively and in a browser. |
+| [`tan-core`](tan-core/src) | The engine. Pure sample-buffer math, no I/O, no OS calls - which is why the same code runs natively, in a browser, and on live desktop audio unchanged. |
 | [`tan-cli`](tan-cli/src) | Command-line tool: generates test audio, runs files through the engine, prints loudness stats. Owns the WAV codec. |
-| [`tan-wasm`](tan-wasm/src) | Thin WebAssembly wrapper exposing the engine to JavaScript. All of the project's `unsafe` code lives here, and only here. |
+| [`tan-ffi`](tan-ffi/src) | Thin FFI (see [GLOSSARY](GLOSSARY.md)) wrapper exposing the engine as plain C-ABI functions. Builds to a native shared library (`.dll`/`.dylib`/`.so`) for other applications, or to WebAssembly for the browser portal - same source, different `cargo build --target`. All of the project's `unsafe` code lives here, and only here. |
+| [`tan-live`](tan-live/src) | Windows desktop tool: captures live audio (microphone, or WASAPI loopback of whatever's playing) and plays the processed result out a second device in real time. First cut of "TAN on your actual desktop," ahead of a proper system-audio adapter. |
 
 ## How the DSP works
 
@@ -74,7 +76,7 @@ of the two curves. No surprises means no artifacts at all.
 This project doubles as a Rust learning exercise. Concepts worth studying, with the
 places they appear:
 
-- **Workspaces and crates** ([Cargo.toml](Cargo.toml)) - one repo, three packages,
+- **Workspaces and crates** ([Cargo.toml](Cargo.toml)) - one repo, four packages,
   one shared `target/` build directory and lockfile.
 - **Ownership and in-place mutation** - `Normalizer::process(&mut self, &mut [f32])`
   borrows the caller's buffer and processes it in place: no allocation, no copies,
@@ -100,10 +102,16 @@ places they appear:
 - **`f32`/`f64` boundaries** ([biquad.rs](tan-core/src/biquad.rs)) - samples are
   `f32`, but filter state is `f64` because recursive filters accumulate rounding
   error at low frequencies.
-- **FFI and contained `unsafe`** ([tan-wasm/src/lib.rs](tan-wasm/src/lib.rs)) -
+- **FFI and contained `unsafe`** ([tan-ffi/src/lib.rs](tan-ffi/src/lib.rs)) -
   plain C-ABI exports (`#[unsafe(no_mangle)] extern "C"`) passing raw pointers into
-  wasm linear memory, with JavaScript on the other side. The engine itself contains
-  zero `unsafe`; the wrapper quarantines all of it in one small file.
+  wasm linear memory (or plain process memory, for the native build), with the
+  caller on the other side. The engine itself contains zero `unsafe`; the wrapper
+  quarantines all of it in one small file.
+- **Real-time audio callbacks** ([tan-live/src/main.rs](tan-live/src/main.rs)) -
+  `cpal` hands you a buffer and a strict time budget to fill it; anything that
+  blocks (allocating, locking contended for too long) risks an audible glitch.
+  `tan-live`'s current mutex-guarded ring buffer is an honest first cut, not
+  the final real-time-safe design - noted in the file itself.
 - **Byte-level I/O without a library** ([tan-cli/src/wav.rs](tan-cli/src/wav.rs)) -
   the WAV codec is hand-written RIFF chunk parsing using `from_le_bytes` /
   `to_le_bytes` (WAV is little-endian throughout).
@@ -126,23 +134,43 @@ target/release/tan-cli process demo.wav out.wav movie --two-pass
 
 Profiles: `movie` (strong leveling) or `music` (gentler, preserves dynamics).
 
+Live desktop audio (Windows only for now):
+
+```
+cargo build --release -p tan-live
+target/release/tan-live.exe --list-devices
+target/release/tan-live.exe --loopback --output "<a second output device>"
+```
+
+See [INSTALL.md](INSTALL.md) for the routing caveat this first cut has (it needs
+two distinct audio devices until a proper system-audio adapter replaces it).
+
 Rebuilding the browser engine after changing `tan-core`:
 
 ```
-cargo build -p tan-wasm --target wasm32-unknown-unknown --release
-cp target/wasm32-unknown-unknown/release/tan_wasm.wasm docs/tan.wasm
+cargo build -p tan-ffi --target wasm32-unknown-unknown --release
+cp target/wasm32-unknown-unknown/release/tan.wasm docs/tan.wasm
+```
+
+Building the native shared library (for embedding in other applications):
+
+```
+cargo build -p tan-ffi --release
+# -> target/release/tan.dll (Windows) / libtan.dylib (macOS) / libtan.so (Linux)
 ```
 
 ## Roadmap
 
 1. Done - WAV codec, perceptual metering, baseline-anchored two-way AGC, look-ahead
-   limiter, offline two-pass mode, CLI, wasm + interactive portal, CI on
+   limiter, offline two-pass mode, CLI, wasm + interactive portal, native shared
+   library, first-cut Windows live tool, tagged releases with installers, CI on
    Windows/macOS/Linux.
-2. Next - blind dialogue detection: a lightweight real-time neural model
+2. Next - a real Windows Audio Processing Object, so TAN sits in the system audio
+   pipeline directly instead of needing a second device or virtual cable.
+3. Then - blind dialogue detection: a lightweight real-time neural model
    (DeepFilterNet-style) so speech stays intelligible without the mastering-time
    metadata Dolby relies on.
-3. Then - live system-audio adapters per platform (Windows APO, PipeWire,
-   Core Audio), mobile.
+4. Then - live system-audio adapters for macOS/Linux, mobile.
 
 ## License
 

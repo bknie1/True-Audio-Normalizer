@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TAN - True Audio Normalizer</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#b3552e">
 <style>
   :root {
     --bg: #f7f6f3;
@@ -87,11 +90,12 @@
   <h1>TAN</h1>
   <p class="tagline">True Audio Normalizer - fixing poorly mixed sound in real time. Open source, no metadata cheats, no walled garden.</p>
 
-  <p>Movie dialogue you can't hear, action scenes that blow you out of the chair.
-  The industry fix (Dolby Volume and friends) leans on loudness metadata embedded
-  at mastering time and ships locked inside licensed hardware. TAN does the job
-  blind - measuring perceived loudness the way a human ear does and riding gain
-  in real time - and it's MIT licensed Rust you can read.</p>
+  <p>I kept riding the volume remote through every movie: up for the whispers,
+  down for the explosions. The industry already solved this once - Dolby Volume
+  and friends do it by baking loudness metadata into the mix at mastering time,
+  then lock the fix inside licensed hardware. I hate walled gardens, so TAN does
+  the job blind instead: it measures perceived loudness the way your ear does
+  and rides gain in real time, and it's MIT licensed Rust you can actually read.</p>
 
   <h2>Hear it</h2>
   <p>A deliberately badly mixed test signal: whisper-level dialogue alternating
@@ -123,15 +127,14 @@
     <tr><td>Loudness range</td><td>26.0 dB</td><td class="win">19.4 dB</td><td class="win">12.4 dB</td></tr>
     <tr><td>Peak</td><td>0.95</td><td>0.89 (limited)</td><td>0.89 (limited)</td></tr>
   </table>
-  <p>Note the loud passages barely move: TAN levels around the content's own
-  baseline, so overall volume stays where the source put it - dialogue rises
-  to meet the action, not the other way around. (Live numbers include the
-  engine's first cold seconds; on real-length content the adapted behavior
-  dominates.)</p>
+  <p>Loud passages barely move. TAN levels around the content's own baseline,
+  so overall volume stays right where the source put it, and dialogue rises to
+  meet the action. (Live numbers include the engine's first cold seconds; on
+  real-length content the adapted behavior dominates.)</p>
 
   <h2>Try it yourself, right here</h2>
-  <p>The same Rust engine, compiled to WebAssembly, running entirely in your
-  browser - nothing is uploaded anywhere.</p>
+  <p>Same Rust engine, compiled to WebAssembly, running entirely in your
+  browser. Nothing you drop in here ever leaves your machine.</p>
 
   <div class="card">
     <h3>Your own file</h3>
@@ -263,6 +266,10 @@
       liveBtn.textContent = "Start live TAN";
       liveStatus.textContent = "";
     }
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    }
   </script>
 
   <h2>How it works</h2>
@@ -295,9 +302,10 @@ cargo run --release -p tan-cli -- process demo-input.wav demo-output.wav movie</
 
   <h2>Roadmap</h2>
   <ul class="milestones">
-    <li><strong>Done</strong> - hand-written WAV codec, perceptual metering, two-way AGC, look-ahead limiter, movie/music profiles, CI on Windows/macOS/Linux.</li>
-    <li><strong>Next</strong> - blind dialogue detection: a lightweight real-time neural model (DeepFilterNet-style) so speech specifically stays intelligible in the mix - the thing Dolby needs mastering-time metadata to do.</li>
-    <li><strong>Then</strong> - live system-audio adapters per platform (Windows APO, PipeWire, Core Audio), mobile.</li>
+    <li><strong>Done</strong> - hand-written WAV codec, perceptual metering, baseline-anchored AGC, look-ahead limiter, movie/music profiles, a native shared library, a first-cut Windows live tool, tagged releases with installers, CI on Windows/macOS/Linux.</li>
+    <li><strong>Next</strong> - a real Windows Audio Processing Object, so TAN sits in the system audio pipeline directly instead of needing a second device or a virtual cable.</li>
+    <li><strong>Then</strong> - blind dialogue detection: a lightweight real-time neural model (DeepFilterNet-style) so speech specifically stays intelligible in the mix - the thing Dolby needs mastering-time metadata to do.</li>
+    <li><strong>After that</strong> - live system-audio adapters for macOS/Linux, mobile.</li>
   </ul>
 
   <footer>

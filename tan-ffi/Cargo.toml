@@ -1,0 +1,11 @@
+[package]
+name = "tan-ffi"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "tan"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+tan-core = { path = "../tan-core" }

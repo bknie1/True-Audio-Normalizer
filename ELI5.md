@@ -4,12 +4,10 @@ The technical version is the [README](README.md). This is the plain one.
 
 ## Why I built this
 
-I'm getting older and movie dialogue got hard to hear. I turn it up for the
-whispers. The action scene blows me out of the chair, so I turn it down. Repeat
-for two hours. Common problem.
-
 Movies are mixed for theaters. Big quiet-to-loud swings feel great in a theater.
-At home you just end up watching the whole thing holding the remote.
+At home you just end up watching the whole thing holding the remote. I have to
+turn up the volume for conversations and down for explosions. I like watching
+movies, so I thought I would try and solve this problem once and for all.
 
 ## What it does
 

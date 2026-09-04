@@ -1,10 +1,12 @@
 [package]
-name = "tan-wasm"
+name = "tan-live"
 version = "0.1.0"
 edition = "2024"
 
-[lib]
-crate-type = ["cdylib"]
+[[bin]]
+name = "tan-live"
+path = "src/main.rs"
 
 [dependencies]
 tan-core = { path = "../tan-core" }
+cpal = "0.18"
