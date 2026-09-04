@@ -152,7 +152,9 @@
   </div>
 
   <script>
-    const wasmBytesPromise = fetch("tan.wasm").then(r => r.arrayBuffer());
+    // no-cache still uses ETag revalidation (a cheap 304 when unchanged),
+    // but guarantees a freshly deployed engine is picked up immediately.
+    const wasmBytesPromise = fetch("tan.wasm", { cache: "no-cache" }).then(r => r.arrayBuffer());
 
     // ---- File mode: offline two-pass in wasm ----
     const fileInput = document.getElementById("file-input");
