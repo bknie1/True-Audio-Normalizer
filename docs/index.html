@@ -126,6 +126,10 @@
     flex-direction: column;
     justify-content: center;
     padding: 4rem 0;
+    /* Real breathing room between sections, not just internal padding -
+       so the previous section has actually scrolled out of frame before
+       the next one starts popping in. */
+    margin: 8vh 0;
   }
   .zone.in, .feature-row.in { opacity: 1; transform: translateY(0) scale(1); }
   .zone h2 {
@@ -562,6 +566,7 @@
 
       const HIGH_COLOR = "#d1603a";
       const LOW_COLOR = "#3d7ab5";
+      const MID_COLOR = "#3f9179"; // the "people" doing the wrangling and lifting
 
       // One bar per slot, each assigned a role up front (matches the
       // explainer's lows/mids/highs split): highs run hot and tall in the
@@ -614,7 +619,6 @@
 
       function draw(t) {
         lastT = t;
-        const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim();
         const { amount, moving } = reduceMotion ? { amount: 1, moving: false } : cyclePhase(t);
         ctx.clearRect(0, 0, w, h);
 
@@ -622,15 +626,22 @@
         const maxBarH = h * 0.62;
         const barW = w / N;
 
-        bars.forEach((bar, i) => {
+        // Stateless per-bar height, so a bar's current geometry can be
+        // recomputed on demand (needed below to find where a neighboring
+        // mid bar's top edge currently is) without draw-order dependencies.
+        function barGeom(bar, i) {
           const frac = bar.chaos + (bar.corrected - bar.chaos) * amount;
           const settle = reduceMotion ? 0 : Math.sin(t * 0.6 + bar.wobble) * 0.015 * (moving ? 0.4 : 1);
           const barH = Math.max(2, (frac + settle) * maxBarH);
           const x = i * barW + barW * 0.18;
           const bw = barW * 0.64;
+          return { barH, x, bw, cx: x + bw / 2, top: baseline - barH };
+        }
 
-          let color = ink;
-          let alpha = 0.28;
+        // Pass 1: the bars themselves.
+        bars.forEach((bar, i) => {
+          const { barH, x, bw } = barGeom(bar, i);
+          let color = MID_COLOR, alpha = 0.3;
           if (bar.role === "high") { color = HIGH_COLOR; alpha = moving ? 0.65 : 0.4; }
           else if (bar.role === "low") { color = LOW_COLOR; alpha = moving ? 0.65 : 0.4; }
 
@@ -640,13 +651,33 @@
           ctx.beginPath();
           ctx.roundRect(x, baseline - barH, bw, barH, r);
           ctx.fill();
+        });
 
-          // A small cue on the bars actively being wrangled/lifted right
-          // now: a chevron nudging down onto loud bars, up under quiet
-          // ones - visible only mid-transition, not during the holds.
-          if (moving && (bar.role === "high" || bar.role === "low")) {
-            const cx = x + bw / 2;
+        // Pass 2: while actively correcting, the nearest mid bar - the
+        // "person" doing the work - reaches a line over to whichever high
+        // or low bar it's currently wrangling down or lifting up, plus the
+        // chevron nudge cue on the bar itself.
+        if (moving) {
+          bars.forEach((bar, i) => {
+            if (bar.role !== "high" && bar.role !== "low") return;
+            const g = barGeom(bar, i);
+            const color = bar.role === "high" ? HIGH_COLOR : LOW_COLOR;
             const nudge = Math.sin(t * 3 + bar.wobble) * 2;
+            const cy = bar.role === "high" ? g.top - 9 + nudge : g.top + 9 - nudge;
+
+            const midIdx = [i - 1, i + 1].find((j) => bars[j] && bars[j].role === "mid");
+            if (midIdx !== undefined) {
+              const m = barGeom(bars[midIdx], midIdx);
+              ctx.globalAlpha = 0.4;
+              ctx.strokeStyle = MID_COLOR;
+              ctx.lineWidth = 1.3;
+              ctx.lineCap = "round";
+              ctx.beginPath();
+              ctx.moveTo(m.cx, m.top - 4);
+              ctx.quadraticCurveTo((m.cx + g.cx) / 2, Math.min(m.top, cy) - 10, g.cx, cy);
+              ctx.stroke();
+            }
+
             ctx.globalAlpha = 0.55;
             ctx.strokeStyle = color;
             ctx.lineWidth = 1.6;
@@ -654,19 +685,17 @@
             ctx.lineJoin = "round";
             ctx.beginPath();
             if (bar.role === "high") {
-              const cy = baseline - barH - 9 + nudge;
-              ctx.moveTo(cx - 4, cy - 3);
-              ctx.lineTo(cx, cy + 2);
-              ctx.lineTo(cx + 4, cy - 3);
+              ctx.moveTo(g.cx - 4, cy - 3);
+              ctx.lineTo(g.cx, cy + 2);
+              ctx.lineTo(g.cx + 4, cy - 3);
             } else {
-              const cy = baseline - barH + 9 - nudge;
-              ctx.moveTo(cx - 4, cy + 3);
-              ctx.lineTo(cx, cy - 2);
-              ctx.lineTo(cx + 4, cy + 3);
+              ctx.moveTo(g.cx - 4, cy + 3);
+              ctx.lineTo(g.cx, cy - 2);
+              ctx.lineTo(g.cx + 4, cy + 3);
             }
             ctx.stroke();
-          }
-        });
+          });
+        }
         ctx.globalAlpha = 1;
       }
 
@@ -843,7 +872,7 @@
             }
           }
         },
-        { threshold: 0, rootMargin: "0px 0px -45% 0px" }
+        { threshold: 0, rootMargin: "0px 0px -65% 0px" }
       );
       document.querySelectorAll(".zone, .feature-row").forEach((el) => zoneObserver.observe(el));
 
