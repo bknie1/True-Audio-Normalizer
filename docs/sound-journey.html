@@ -84,6 +84,7 @@
   .row p.desc { color: var(--muted); margin: 0 0 1.25rem; }
   .row-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0.7rem 0 0.15rem; }
   audio, video { width: 100%; margin: 0.2rem 0; }
+  .sync-note { font-size: 0.76rem; color: var(--muted); margin: 0.3rem 0 0; }
   button {
     background: var(--accent-row, var(--accent));
     color: #fff;
@@ -238,8 +239,9 @@
     <div class="row-label">Original</div>
     <video controls preload="none" id="orig-movie" src="audio/samples/movie-caminandes.ogv"></video>
     <div id="result-movie" hidden>
-      <div class="row-label">After TAN (audio)</div>
-      <audio controls id="proc-movie"></audio>
+      <div class="row-label">After TAN</div>
+      <video controls muted id="proc-movie"></video>
+      <p class="sync-note">Same picture, TAN-processed audio - synced via Web Audio, not a re-encoded file.</p>
     </div>
     <canvas class="wave" id="wave-movie" width="600" height="90" hidden></canvas>
     <div class="wave-legend" id="wave-legend-movie" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN</div>
@@ -518,7 +520,7 @@
     draw(envelope(processed), color, 0.85);
   }
 
-  document.querySelectorAll("button[data-key]").forEach((btn) => {
+  document.querySelectorAll('button[data-key]:not([data-key="movie"])').forEach((btn) => {
     btn.addEventListener("click", async () => {
       const key = btn.dataset.key;
       const status = document.getElementById(`status-${key}`);
@@ -565,6 +567,95 @@
       }
     });
   });
+
+  // ---- Movie: special-cased because we already download the whole video
+  // to extract its audio, so the picture is sitting right there too. Rather
+  // than re-encode a new video file (real work, no client-side muxer),
+  // "After TAN" is a second, muted <video> showing the same picture, with
+  // the processed audio played through Web Audio and kept in sync with its
+  // play/pause/seek - same trick as dubbing, not a new file. ----
+  (function () {
+    const movieBtn = document.querySelector('button[data-key="movie"]');
+    if (!movieBtn) return;
+    movieBtn.addEventListener("click", async () => {
+      const status = document.getElementById("status-movie");
+      const origEl = document.getElementById("orig-movie");
+      const procVideo = document.getElementById("proc-movie");
+      movieBtn.disabled = true;
+      try {
+        status.textContent = "Fetching and decoding...";
+        const resp = await fetch(origEl.currentSrc || origEl.src);
+        const arrayBuf = await resp.arrayBuffer();
+        const videoBytesForProc = arrayBuf.slice(0); // decodeAudioData may transfer/detach the original
+        const ctx = new AudioContext();
+        const decoded = await ctx.decodeAudioData(arrayBuf);
+        ctx.close();
+        const channels = decoded.numberOfChannels;
+        const frames = decoded.length;
+
+        status.textContent = "Running TAN two-pass...";
+        const { instance } = await WebAssembly.instantiate(await wasmBytesPromise, {});
+        const wasm = instance.exports;
+        const len = frames * channels;
+        const ptr = wasm.tan_alloc(len);
+        let mem = new Float32Array(wasm.memory.buffer, ptr, len);
+        for (let ch = 0; ch < channels; ch++) {
+          const data = decoded.getChannelData(ch);
+          for (let i = 0; i < frames; i++) mem[i * channels + ch] = data[i];
+        }
+        const originalSnapshot = mem.slice();
+        wasm.tan_normalize_offline(ptr, len, decoded.sampleRate, channels, 0);
+        mem = new Float32Array(wasm.memory.buffer, ptr, len);
+
+        status.textContent = "Preparing synced playback...";
+        const playCtx = new AudioContext();
+        const processedBuffer = playCtx.createBuffer(channels, frames, decoded.sampleRate);
+        for (let ch = 0; ch < channels; ch++) {
+          const channelData = processedBuffer.getChannelData(ch);
+          for (let i = 0; i < frames; i++) channelData[i] = mem[i * channels + ch];
+        }
+
+        let sourceNode = null;
+        function stopSource() {
+          if (sourceNode) {
+            try { sourceNode.stop(); } catch (e) {}
+            sourceNode.disconnect();
+            sourceNode = null;
+          }
+        }
+        function startSourceAt(offset) {
+          stopSource();
+          sourceNode = playCtx.createBufferSource();
+          sourceNode.buffer = processedBuffer;
+          sourceNode.connect(playCtx.destination);
+          sourceNode.start(0, Math.max(0, Math.min(offset, processedBuffer.duration - 0.01)));
+        }
+        procVideo.addEventListener("play", () => {
+          playCtx.resume();
+          startSourceAt(procVideo.currentTime);
+        });
+        procVideo.addEventListener("pause", stopSource);
+        procVideo.addEventListener("ended", stopSource);
+        procVideo.addEventListener("seeked", () => {
+          if (!procVideo.paused) startSourceAt(procVideo.currentTime);
+        });
+
+        status.textContent = "Encoding waveform preview...";
+        procVideo.src = URL.createObjectURL(new Blob([videoBytesForProc], { type: "video/ogg" }));
+        procVideo.muted = true; // belt and suspenders - the video's own audio must never play
+        document.getElementById("result-movie").hidden = false;
+        const rowColor = getComputedStyle(movieBtn).backgroundColor;
+        drawWaveform(document.getElementById("wave-movie"), originalSnapshot, mem, channels, rowColor);
+        document.getElementById("wave-legend-movie").hidden = false;
+        await procVideo.play().catch(() => {});
+        status.textContent = "";
+      } catch (err) {
+        status.textContent = "Couldn't process: " + err.message;
+      } finally {
+        movieBtn.disabled = false;
+      }
+    });
+  })();
 </script>
 </body>
 </html>
