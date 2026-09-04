@@ -1,9 +1,11 @@
 mod biquad;
 mod limiter;
 mod loudness;
+mod offline;
 
 pub use limiter::Limiter;
 pub use loudness::LoudnessMeter;
+pub use offline::normalize_offline;
 
 /// Tuning for one listening profile. All loudness values are K-weighted dB
 /// (perceived loudness, not raw amplitude).
@@ -38,6 +40,10 @@ pub struct Profile {
     /// finishes in ~50 ms reads as "that sound is loud", not "the volume
     /// just dropped".
     pub fast_fall_db_per_s: f32,
+    /// Offline (two-pass) only: how fast gain may ramp down *ahead of* a
+    /// loud onset it can see coming. Quick, so it finishes just before the
+    /// onset without audibly ducking the tail of the preceding content.
+    pub preduck_db_per_s: f32,
     /// Limiter ceiling (linear); 0.891 is about -1 dBFS.
     pub ceiling: f32,
     /// Limiter look-ahead in seconds. Also the processing latency.
@@ -57,6 +63,7 @@ impl Profile {
             recover_db_per_s: 40.0,
             fall_db_per_s: 60.0,
             fast_fall_db_per_s: 600.0,
+            preduck_db_per_s: 150.0,
             ceiling: 0.891,
             lookahead_s: 0.008,
         }
@@ -74,6 +81,7 @@ impl Profile {
             recover_db_per_s: 10.0,
             fall_db_per_s: 20.0,
             fast_fall_db_per_s: 20.0,
+            preduck_db_per_s: 40.0,
             ceiling: 0.891,
             lookahead_s: 0.008,
         }
