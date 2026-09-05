@@ -47,6 +47,7 @@ fn main() {
                 app.on_menu(&ev.id, control_flow);
             }
             app.poll_updates();
+            app.poll_icon();
         }
     });
 }
@@ -134,6 +135,10 @@ struct App {
     update_item: MenuItem,
     update_rx: Receiver<Option<String>>, // Some(tag) if a newer release exists
     update_ready: bool,
+
+    /// The icon visual last actually drawn, so we only call set_icon (and
+    /// redraw the 64x64 buffer) when something visible would change.
+    last_icon: IconVisual,
 }
 
 impl App {
@@ -254,7 +259,7 @@ impl App {
         let tray = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
             .with_tooltip("TAN - starting...")
-            .with_icon(make_icon())
+            .with_icon(make_icon(IconVisual::Off))
             .build()
             .expect("build tray icon");
 
@@ -274,6 +279,7 @@ impl App {
             update_item,
             update_rx,
             update_ready: false,
+            last_icon: IconVisual::Off,
         };
         app.restore_saved(); // reapply last session's choices before starting
         app.apply();
@@ -386,6 +392,7 @@ impl App {
         if !self.enabled {
             self.last_status = "paused".to_string();
             self.set_tooltip("TAN - paused");
+            self.refresh_icon(IconVisual::Off);
             return;
         }
         match start(&self.cfg) {
@@ -394,14 +401,36 @@ impl App {
                 self.engine = Some(engine);
                 self.last_status = format!("on: {info}");
                 self.set_tooltip(&format!("TAN - on\n{info}"));
+                self.refresh_icon(IconVisual::On(0));
             }
             Err(err) => {
                 self.enabled = false;
                 self.enabled_item.set_checked(false);
                 self.last_status = format!("error: {err}");
                 self.set_tooltip(&format!("TAN - error\n{err}"));
+                self.refresh_icon(IconVisual::Error);
                 eprintln!("TAN could not start: {err}");
             }
+        }
+    }
+
+    /// Redraw and apply the tray icon only if the visual actually changed
+    /// from what's currently showing - avoids needless 64x64 redraws.
+    fn refresh_icon(&mut self, visual: IconVisual) {
+        if visual == self.last_icon {
+            return;
+        }
+        self.last_icon = visual;
+        let _ = self.tray.set_icon(Some(make_icon(visual)));
+    }
+
+    /// Called every event-loop tick. While running, samples the engine's
+    /// live audio level and lets the icon glow with it - visible proof TAN
+    /// isn't just "on" but actually seeing audio go by.
+    fn poll_icon(&mut self) {
+        if let Some(engine) = &self.engine {
+            let bucket = (engine.level().clamp(0.0, 1.0) * 8.0).round() as u8;
+            self.refresh_icon(IconVisual::On(bucket));
         }
     }
 
@@ -550,12 +579,51 @@ fn parse_saved(text: &str) -> Saved {
 /// (a rounded orange badge with seven cream waveform bars) so there's no asset
 /// to ship and no rasterizer dependency. Rendered at 64x64 with a little edge
 /// feathering; the tray scales it down.
-fn make_icon() -> Icon {
-    let (rgba, s) = icon_rgba();
+/// What the tray icon should currently look like: grayed out while paused,
+/// red-tinted on an error, or the normal badge while running - and in the
+/// running case, subtly brighter the louder the audio currently is, so at a
+/// glance you can tell TAN is not just "on" but actually processing sound.
+/// `On`'s level is pre-bucketed (0..=8) so equality comparisons (used to
+/// decide whether a redraw is even needed) are cheap and stable.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum IconVisual {
+    Off,
+    Error,
+    On(u8),
+}
+
+fn make_icon(visual: IconVisual) -> Icon {
+    let (rgba, s) = icon_rgba(visual);
     Icon::from_rgba(rgba, s, s).expect("valid icon")
 }
 
-fn icon_rgba() -> (Vec<u8>, u32) {
+/// Recolor a badge pixel for the current visual state: desaturated+dimmed
+/// when off, red-tinted on error, or lightened toward white in proportion to
+/// the audio level while running (louder = brighter badge).
+fn tint(visual: IconVisual, rgb: [u8; 3]) -> [u8; 3] {
+    match visual {
+        IconVisual::Off => {
+            let l = 0.299 * rgb[0] as f32 + 0.587 * rgb[1] as f32 + 0.114 * rgb[2] as f32;
+            let l = (l * 0.6) as u8;
+            [l, l, l]
+        }
+        IconVisual::Error => [
+            rgb[0].max(190),
+            (rgb[1] as f32 * 0.3) as u8,
+            (rgb[2] as f32 * 0.3) as u8,
+        ],
+        IconVisual::On(level) => {
+            let t = (level as f32 / 8.0).clamp(0.0, 1.0) * 0.4;
+            [
+                (rgb[0] as f32 + (255.0 - rgb[0] as f32) * t) as u8,
+                (rgb[1] as f32 + (255.0 - rgb[1] as f32) * t) as u8,
+                (rgb[2] as f32 + (255.0 - rgb[2] as f32) * t) as u8,
+            ]
+        }
+    }
+}
+
+fn icon_rgba(visual: IconVisual) -> (Vec<u8>, u32) {
     const S: usize = 64;
     let k = S as f32 / 128.0; // the SVG uses a 0..128 viewBox
 
@@ -637,6 +705,7 @@ fn icon_rgba() -> (Vec<u8>, u32) {
                     ];
                 }
             }
+            col = tint(visual, col);
             let i = (y * S + x) * 4;
             rgba[i] = col[0];
             rgba[i + 1] = col[1];
@@ -649,7 +718,7 @@ fn icon_rgba() -> (Vec<u8>, u32) {
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_tag, icon_rgba, is_newer, parse_saved};
+    use super::{extract_tag, icon_rgba, is_newer, parse_saved, tint, IconVisual};
 
     #[test]
     fn version_comparison() {
@@ -693,7 +762,7 @@ mod tests {
 
     #[test]
     fn icon_is_shaped_not_a_square() {
-        let (rgba, s) = icon_rgba();
+        let (rgba, s) = icon_rgba(IconVisual::On(0));
         let s = s as usize;
         let at = |x: usize, y: usize| {
             let i = (y * s + x) * 4;
@@ -708,5 +777,23 @@ mod tests {
         let (r, g, b, a) = at(s / 2, s / 2);
         assert_eq!(a, 255);
         assert!(r > 200 && g > 180 && b > 150, "center bar should be cream, got {r},{g},{b}");
+    }
+
+    #[test]
+    fn tint_makes_the_three_states_visibly_different() {
+        let base = [0xc8, 0x6a, 0x3d]; // the badge's own top-left gradient color
+        let off = tint(IconVisual::Off, base);
+        let err = tint(IconVisual::Error, base);
+        let quiet = tint(IconVisual::On(0), base);
+        let loud = tint(IconVisual::On(8), base);
+
+        assert_eq!(off[0], off[1]);
+        assert_eq!(off[1], off[2]); // Off is desaturated (gray)
+        assert!(off[0] < base[0], "Off should be dimmer than the base color");
+
+        assert!(err[0] > err[1] && err[0] > err[2], "Error should read as red-tinted");
+
+        assert_eq!(quiet, base, "silent On(0) should render as the plain badge color");
+        assert!(loud[0] > base[0], "a loud On(8) should be visibly brighter than silence");
     }
 }

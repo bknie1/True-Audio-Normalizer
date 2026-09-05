@@ -15,7 +15,7 @@ pub mod platform;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use platform::{AudioBackend, CpalBackend};
 use std::cell::UnsafeCell;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tan_core::{Normalizer, Profile};
 
@@ -200,6 +200,17 @@ pub struct RunningEngine {
     pub info: String,
     pub capture_name: String,
     pub output_name: String,
+    /// Live post-TAN peak level (0.0..~1.0), updated every capture callback
+    /// with a decaying peak-hold. A UI can poll this to show the engine is
+    /// actually processing audio, not just "on" - a tray icon, a meter, etc.
+    level: Arc<AtomicU32>,
+}
+
+impl RunningEngine {
+    /// Current level, decoded from its bit-pattern storage.
+    pub fn level(&self) -> f32 {
+        f32::from_bits(self.level.load(Ordering::Relaxed))
+    }
 }
 
 pub fn list_inputs() -> Vec<String> {
@@ -494,6 +505,8 @@ pub(crate) fn cpal_run(cfg: &EngineConfig) -> Result<RunningEngine, String> {
     let mut converter = FormatConverter::new(in_ch, in_rate, out_ch, out_rate);
 
     let ring_in = ring.clone();
+    let level = Arc::new(AtomicU32::new(0f32.to_bits()));
+    let level_in = level.clone();
     let mut scratch: Vec<f32> = Vec::new();
     let mut converted: Vec<f32> = Vec::new();
     let input_stream = capture_device
@@ -503,6 +516,13 @@ pub(crate) fn cpal_run(cfg: &EngineConfig) -> Result<RunningEngine, String> {
                 scratch.clear();
                 scratch.extend_from_slice(data);
                 normalizer.process(&mut scratch); // at the input format
+
+                // Decaying peak-hold so a UI meter has something to look at
+                // between loud moments instead of flickering to zero.
+                let peak = scratch.iter().fold(0.0f32, |m, &s| m.max(s.abs()));
+                let prev = f32::from_bits(level_in.load(Ordering::Relaxed));
+                level_in.store((prev * 0.9).max(peak).to_bits(), Ordering::Relaxed);
+
                 converted.clear();
                 converter.process(&scratch, &mut converted); // -> output format
                 ring_in.push_slice(&converted);
@@ -557,6 +577,7 @@ pub(crate) fn cpal_run(cfg: &EngineConfig) -> Result<RunningEngine, String> {
         info,
         capture_name,
         output_name,
+        level,
     })
 }
 
