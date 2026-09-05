@@ -612,6 +612,23 @@ mod tests {
     }
 
     #[test]
+    fn converter_handles_high_channel_counts() {
+        // 12ch (7.1.4 Atmos bed) identity passthrough - no channel cap.
+        let mut id = FormatConverter::new(12, 48000, 12, 48000);
+        let frame: Vec<f32> = (0..12).map(|i| i as f32 * 0.01).collect();
+        let mut out = Vec::new();
+        id.process(&frame, &mut out);
+        assert_eq!(out, frame, "12ch must pass through untouched");
+
+        // 16ch -> stereo must not panic and yields interleaved stereo.
+        let mut dn = FormatConverter::new(16, 48000, 2, 48000);
+        let two_frames: Vec<f32> = (0..32).map(|i| (i as f32).sin()).collect();
+        let mut o2 = Vec::new();
+        dn.process(&two_frames, &mut o2);
+        assert_eq!(o2.len() % 2, 0);
+    }
+
+    #[test]
     fn converter_downmixes_71_to_stereo() {
         // Same rate, 8ch -> 2ch: one frame in, one frame out, left/right split.
         let mut c = FormatConverter::new(8, 48000, 2, 48000);
