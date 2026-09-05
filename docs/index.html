@@ -205,6 +205,31 @@
   .wave-legend { font-size: 0.72rem; color: var(--muted); margin-top: 0.3rem; }
   .wave-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.3rem; }
   footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
+  .get-tan {
+    text-align: center;
+    margin: 3rem 0 1rem;
+    padding: 2.5rem 1.5rem;
+    border: 1px solid var(--edge);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--accent) 5%, var(--card));
+  }
+  .get-tan h2 { margin: 0 0 0.5rem; }
+  .get-tan p { color: var(--muted); max-width: 34rem; margin: 0.5rem auto; }
+  .get-tan-btn {
+    display: inline-flex; align-items: center; gap: 0.6rem;
+    margin: 1.25rem 0 0.5rem;
+    padding: 0.8rem 1.6rem;
+    background: var(--accent); color: #fff; text-decoration: none;
+    font-size: 1.1rem; font-weight: 700; border-radius: 10px;
+    box-shadow: 0 10px 30px -12px color-mix(in srgb, var(--accent) 80%, transparent);
+  }
+  .get-tan-btn:hover { filter: brightness(1.08); }
+  .get-tan-btn .tag {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 0.15rem 0.5rem; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.22);
+  }
+  .get-tan-note { font-size: 0.8rem; }
   #stop-all {
     position: fixed;
     right: 1.25rem;
@@ -1211,6 +1236,20 @@ cargo run --release -p tan-cli -- process demo-input.wav demo-output.wav movie</
     <li><strong>Then</strong> - blind dialogue detection: a lightweight real-time neural model (DeepFilterNet-style) so speech specifically stays intelligible in the mix - the thing Dolby needs mastering-time metadata to do.</li>
     <li><strong>After that</strong> - live system-audio adapters for macOS/Linux, mobile.</li>
   </ul>
+  </section>
+
+  <section class="get-tan">
+    <h2>Get TAN</h2>
+    <p>Windows installer plus Windows, macOS, and Linux builds are on the
+    releases page. The installer sets up the system-tray app; open it, pick
+    your input and output, and go.</p>
+    <a class="get-tan-btn" href="https://github.com/bknie1/True-Audio-Normalizer/releases/latest" target="_blank" rel="noopener">
+      Get TAN <span class="tag">Pre-Release</span>
+    </a>
+    <p class="get-tan-note">Heads up: TAN is early, pre-release software under
+    active development - expect rough edges, and set-up still takes a little
+    manual audio routing. Builds aren't code-signed yet, so Windows SmartScreen
+    will warn on first run; choose "More info" then "Run anyway".</p>
   </section>
 
   <footer>
