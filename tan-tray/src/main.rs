@@ -53,8 +53,8 @@ struct App {
     enabled: bool,
 
     enabled_item: CheckMenuItem,
-    movie_item: CheckMenuItem,
-    music_item: CheckMenuItem,
+    profile_items: Vec<CheckMenuItem>,
+    profile_kinds: Vec<ProfileKind>,
     /// Last engine wiring or error, included in copied diagnostics.
     last_status: String,
 
@@ -80,19 +80,32 @@ impl App {
             loopback,
             capture: None,
             output: None,
-            profile: ProfileKind::Movie,
+            profile: ProfileKind::Universal,
             latency_ms: 200,
         };
 
         let header = MenuItem::with_id(MenuId::new("header"), "TAN - True Audio Normalizer", false, None);
         let enabled_item = CheckMenuItem::with_id(MenuId::new("enabled"), "Enabled", true, true, None);
 
-        let movie_item = CheckMenuItem::with_id(MenuId::new("profile:movie"), "Movie", true, true, None);
-        let music_item = CheckMenuItem::with_id(MenuId::new("profile:music"), "Music", true, false, None);
+        // Profile submenu built from the engine's list, so adding a preset in
+        // tan-live surfaces here automatically. Universal is the default.
+        let profile_kinds: Vec<ProfileKind> = ProfileKind::all().to_vec();
+        let profile_items: Vec<CheckMenuItem> = profile_kinds
+            .iter()
+            .map(|p| {
+                CheckMenuItem::with_id(
+                    MenuId::new(format!("profile:{}", p.key())),
+                    p.label(),
+                    true,
+                    *p == cfg.profile,
+                    None,
+                )
+            })
+            .collect();
         let profile_menu = Submenu::with_items(
             "Profile",
             true,
-            &[&movie_item, &music_item],
+            &profile_items.iter().map(|i| i as &dyn tray_icon::menu::IsMenuItem).collect::<Vec<_>>(),
         )
         .expect("profile submenu");
 
@@ -169,8 +182,8 @@ impl App {
             engine: None,
             enabled: true,
             enabled_item,
-            movie_item,
-            music_item,
+            profile_items,
+            profile_kinds,
             last_status: String::new(),
             capture_items,
             capture_specs,
@@ -194,10 +207,11 @@ impl App {
     /// platform-fixed and never restored.
     fn apply_saved(&mut self, saved: Saved) {
         if let Some(p) = saved.profile {
-            self.cfg.profile = if p == "music" { ProfileKind::Music } else { ProfileKind::Movie };
+            if let Some(kind) = ProfileKind::from_key(&p) {
+                self.cfg.profile = kind;
+            }
         }
-        self.movie_item.set_checked(self.cfg.profile == ProfileKind::Movie);
-        self.music_item.set_checked(self.cfg.profile == ProfileKind::Music);
+        self.sync_profile_checks();
 
         if let Some(cap) = saved.capture {
             let spec = if cap.is_empty() { None } else { Some(cap) };
@@ -221,11 +235,18 @@ impl App {
         }
     }
 
+    /// Tick the menu item for the active profile, untick the rest.
+    fn sync_profile_checks(&self) {
+        for (item, kind) in self.profile_items.iter().zip(self.profile_kinds.iter()) {
+            item.set_checked(*kind == self.cfg.profile);
+        }
+    }
+
     /// The settings serialized as `key=value` text (used for save and export).
     fn config_body(&self) -> String {
         format!(
             "profile={}\nloopback={}\ncapture={}\noutput={}\nenabled={}\n",
-            self.cfg.profile.label().to_lowercase(),
+            self.cfg.profile.key(),
             self.cfg.loopback,
             self.cfg.capture.clone().unwrap_or_default(),
             self.cfg.output.clone().unwrap_or_default(),
@@ -342,19 +363,14 @@ impl App {
                 self.apply();
                 self.save();
             }
-            "profile:movie" => {
-                self.cfg.profile = ProfileKind::Movie;
-                self.movie_item.set_checked(true);
-                self.music_item.set_checked(false);
-                self.apply();
-                self.save();
-            }
-            "profile:music" => {
-                self.cfg.profile = ProfileKind::Music;
-                self.movie_item.set_checked(false);
-                self.music_item.set_checked(true);
-                self.apply();
-                self.save();
+            other if other.starts_with("profile:") => {
+                let key = &other["profile:".len()..];
+                if let Some(kind) = ProfileKind::from_key(key) {
+                    self.cfg.profile = kind;
+                    self.sync_profile_checks();
+                    self.apply();
+                    self.save();
+                }
             }
             other if other.starts_with("cap:") => {
                 if let Some(idx) = self.capture_items.iter().position(|it| it.id().0 == other) {

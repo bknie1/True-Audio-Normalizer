@@ -98,22 +98,64 @@ impl Ring {
 /// Which DSP preset to run.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ProfileKind {
+    Universal,
     Movie,
     Music,
+    Speech,
+    Night,
+    Game,
 }
 
 impl ProfileKind {
+    /// All presets, in menu order (Universal first: the catch-all default).
+    pub fn all() -> [ProfileKind; 6] {
+        [
+            ProfileKind::Universal,
+            ProfileKind::Movie,
+            ProfileKind::Music,
+            ProfileKind::Speech,
+            ProfileKind::Night,
+            ProfileKind::Game,
+        ]
+    }
+
     fn profile(self) -> Profile {
         match self {
+            ProfileKind::Universal => Profile::universal(),
             ProfileKind::Movie => Profile::movie(),
             ProfileKind::Music => Profile::music(),
+            ProfileKind::Speech => Profile::speech(),
+            ProfileKind::Night => Profile::night(),
+            ProfileKind::Game => Profile::game(),
         }
     }
+
+    /// Display name.
     pub fn label(self) -> &'static str {
         match self {
+            ProfileKind::Universal => "Universal",
             ProfileKind::Movie => "Movie",
             ProfileKind::Music => "Music",
+            ProfileKind::Speech => "Speech / Podcast",
+            ProfileKind::Night => "Night",
+            ProfileKind::Game => "Game",
         }
+    }
+
+    /// Stable lowercase key for config files, CLI flags, and menu ids.
+    pub fn key(self) -> &'static str {
+        match self {
+            ProfileKind::Universal => "universal",
+            ProfileKind::Movie => "movie",
+            ProfileKind::Music => "music",
+            ProfileKind::Speech => "speech",
+            ProfileKind::Night => "night",
+            ProfileKind::Game => "game",
+        }
+    }
+
+    pub fn from_key(s: &str) -> Option<ProfileKind> {
+        ProfileKind::all().into_iter().find(|p| p.key() == s)
     }
 }
 
@@ -141,7 +183,7 @@ impl Default for EngineConfig {
             loopback: true,
             capture: None,
             output: None,
-            profile: ProfileKind::Movie,
+            profile: ProfileKind::Universal,
             latency_ms: 200,
         }
     }

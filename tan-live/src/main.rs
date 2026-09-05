@@ -27,13 +27,16 @@ fn main() {
         loopback: loopback_from.is_some() || args.iter().any(|a| a == "--loopback"),
         capture: loopback_from.or_else(|| flag_value(&args, "--input")),
         output: flag_value(&args, "--output"),
-        profile: match flag_value(&args, "--profile").as_deref() {
-            None | Some("movie") => ProfileKind::Movie,
-            Some("music") => ProfileKind::Music,
-            Some(other) => {
-                eprintln!("unknown profile '{other}' (expected: movie, music)");
-                exit(1);
-            }
+        profile: match flag_value(&args, "--profile") {
+            None => ProfileKind::Universal,
+            Some(name) => match ProfileKind::from_key(&name) {
+                Some(p) => p,
+                None => {
+                    let keys: Vec<&str> = ProfileKind::all().iter().map(|p| p.key()).collect();
+                    eprintln!("unknown profile '{name}' (expected: {})", keys.join(", "));
+                    exit(1);
+                }
+            },
         },
         latency_ms: flag_value(&args, "--latency-ms")
             .and_then(|s| s.parse().ok())
@@ -101,7 +104,7 @@ fn list_devices() {
          \x20 --output <name|idx>        device to play TAN's result out of\n\
          \n\
          Other:\n\
-         \x20 --profile movie|music      DSP profile (default: movie)\n\
+         \x20 --profile <name>           DSP profile: universal (default), movie, music, speech, night, game\n\
          \x20 --latency-ms <n>           buffered latency target (default: 200)\n\
          \x20 --list-devices             show this list and exit\n\
          \x20 --diagnostics              dump devices + the config each offers, and exit\n\

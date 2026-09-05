@@ -95,6 +95,90 @@ impl Profile {
             lookahead_s: 0.008,
         }
     }
+
+    /// Universal: the safe catch-all when the content type is unknown.
+    /// Moderate leveling that sits between Movie and Music - noticeable help
+    /// on badly mixed material without flattening deliberately dynamic content.
+    pub fn universal() -> Self {
+        Self {
+            baseline_rise_s: 2.5,
+            baseline_sink_s: 25.0,
+            max_boost_db: 9.0,
+            max_cut_db: 12.0,
+            strength: 0.6,
+            gate_db: -55.0,
+            rise_db_per_s: 8.0,
+            recover_db_per_s: 25.0,
+            fall_db_per_s: 40.0,
+            fast_fall_db_per_s: 400.0,
+            preduck_db_per_s: 100.0,
+            ceiling: 0.891,
+            lookahead_s: 0.008,
+        }
+    }
+
+    /// Speech / podcast: maximize dialogue intelligibility. Brings quiet
+    /// talking up firmly and follows the voice quickly, with a slightly higher
+    /// gate so breaths and room tone in the gaps are not pumped up.
+    pub fn speech() -> Self {
+        Self {
+            baseline_rise_s: 1.0,
+            baseline_sink_s: 15.0,
+            max_boost_db: 14.0,
+            max_cut_db: 12.0,
+            strength: 0.8,
+            gate_db: -50.0,
+            rise_db_per_s: 10.0,
+            recover_db_per_s: 30.0,
+            fall_db_per_s: 45.0,
+            fast_fall_db_per_s: 300.0,
+            preduck_db_per_s: 120.0,
+            ceiling: 0.891,
+            lookahead_s: 0.008,
+        }
+    }
+
+    /// Night: aggressive dynamic-range compression for quiet hours. Pulls
+    /// quiet content up and slams loud spikes down hard and fast, with extra
+    /// peak headroom, so nothing wakes the house.
+    pub fn night() -> Self {
+        Self {
+            baseline_rise_s: 1.0,
+            baseline_sink_s: 12.0,
+            max_boost_db: 12.0,
+            max_cut_db: 24.0,
+            strength: 0.95,
+            gate_db: -60.0,
+            rise_db_per_s: 12.0,
+            recover_db_per_s: 40.0,
+            fall_db_per_s: 90.0,
+            fast_fall_db_per_s: 900.0,
+            preduck_db_per_s: 200.0,
+            ceiling: 0.708, // ~ -3 dBFS, quieter peaks
+            lookahead_s: 0.008,
+        }
+    }
+
+    /// Game: preserve punch and positional cues while taming extremes. A
+    /// lighter touch than Movie so transients and dynamics that carry
+    /// gameplay information survive.
+    pub fn game() -> Self {
+        Self {
+            baseline_rise_s: 2.0,
+            baseline_sink_s: 25.0,
+            max_boost_db: 8.0,
+            max_cut_db: 10.0,
+            strength: 0.5,
+            gate_db: -55.0,
+            rise_db_per_s: 6.0,
+            recover_db_per_s: 20.0,
+            fall_db_per_s: 35.0,
+            fast_fall_db_per_s: 350.0,
+            preduck_db_per_s: 90.0,
+            ceiling: 0.891,
+            lookahead_s: 0.008,
+        }
+    }
 }
 
 /// The TAN engine: perceptual loudness metering feeding a two-way automatic
