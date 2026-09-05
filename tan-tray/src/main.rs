@@ -12,7 +12,7 @@
 //! Hide the console window on Windows release builds (this is a tray app).
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
@@ -26,7 +26,26 @@ use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 use tan_live::{start, EngineConfig, ProfileKind, RunningEngine};
 
+/// Holds a named mutex for the whole process lifetime so the Windows
+/// installer can reliably tell TAN is running (see AppMutex in
+/// packaging/windows/tan-setup.iss) - a windowless tray app can't respond to
+/// Restart Manager's usual close-request signal, which is what made the
+/// installer hang and then fail with Access Denied. The handle is
+/// deliberately never closed; Windows releases it automatically on exit,
+/// which is the exact moment Setup's mutex check needs to see.
+#[cfg(target_os = "windows")]
+fn hold_app_mutex() {
+    use windows_sys::Win32::System::Threading::CreateMutexW;
+    let name: Vec<u16> = "TANTrayAppMutex\0".encode_utf16().collect();
+    unsafe {
+        CreateMutexW(std::ptr::null(), 0, name.as_ptr());
+    }
+}
+#[cfg(not(target_os = "windows"))]
+fn hold_app_mutex() {}
+
 fn main() {
+    hold_app_mutex();
     let event_loop = EventLoopBuilder::new().build();
     let menu_rx = MenuEvent::receiver();
     let mut app: Option<App> = None;
@@ -47,6 +66,7 @@ fn main() {
                 app.on_menu(&ev.id, control_flow);
             }
             app.poll_updates();
+            app.poll_self_update(control_flow);
             app.poll_icon();
         }
     });
@@ -114,6 +134,203 @@ fn open_url(url: &str) {
     let _ = std::process::Command::new("xdg-open").arg(url).spawn();
 }
 
+// ---- Self-update: download the new build, wait for this process to exit,
+// swap the new files into place, and relaunch - no browser, no manual zip
+// wrangling. The three platform release assets are named by our own release
+// workflow, so the download URL is just GitHub's stable
+// releases/download/<tag>/<asset> path - no API/JSON parsing needed. ----
+
+/// The release asset that carries this platform's build (see
+/// .github/workflows/release.yml for where these names come from).
+fn platform_asset_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "tan-windows-x86_64.zip"
+    } else if cfg!(target_os = "macos") {
+        "tan-macos-arm64.zip"
+    } else {
+        "tan-linux-x86_64.zip"
+    }
+}
+
+fn asset_download_url(tag: &str, asset: &str) -> String {
+    format!("https://github.com/{REPO}/releases/download/{tag}/{asset}")
+}
+
+/// Download a URL to `dest` by shelling out (PowerShell / curl) - the same
+/// no-new-dependency approach as `fetch_latest_tag`, so this needs no HTTP
+/// crate (and no C compiler on the GNU Windows toolchain).
+fn download_file(url: &str, dest: &Path) -> Result<(), String> {
+    let status = if cfg!(windows) {
+        std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '{url}' -OutFile '{}' -UseBasicParsing",
+                    dest.display()
+                ),
+            ])
+            .status()
+    } else {
+        std::process::Command::new("curl")
+            .args(["-fsSL", "-o", &dest.to_string_lossy(), url])
+            .status()
+    };
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        Ok(s) => Err(format!("download exited with {s}")),
+        Err(e) => Err(format!("couldn't run the downloader: {e}")),
+    }
+}
+
+fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(dest_dir).map_err(|e| format!("mkdir {}: {e}", dest_dir.display()))?;
+    let status = if cfg!(windows) {
+        std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "Expand-Archive -Path '{}' -DestinationPath '{}' -Force",
+                    zip_path.display(),
+                    dest_dir.display()
+                ),
+            ])
+            .status()
+    } else {
+        std::process::Command::new("unzip")
+            .args(["-o", &zip_path.to_string_lossy(), "-d", &dest_dir.to_string_lossy()])
+            .status()
+    };
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        Ok(s) => Err(format!("extract exited with {s}")),
+        Err(e) => Err(format!("couldn't run the unzip tool: {e}")),
+    }
+}
+
+/// Whether the current (unelevated) process can write into `dir` - used to
+/// decide whether the swap needs to ask Windows for admin rights (a plain
+/// tray app is never elevated, and an install under Program Files needs it).
+fn dir_is_writable(dir: &Path) -> bool {
+    let probe = dir.join(format!(".tan-write-test-{}", std::process::id()));
+    match std::fs::write(&probe, b"x") {
+        Ok(()) => {
+            let _ = std::fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// Download `tag`'s build for this platform and hand off to a small,
+/// detached helper script that: waits for this process to exit, copies the
+/// new files over the current install directory, relaunches the app, then
+/// deletes itself. Returns once the helper is scheduled - the caller should
+/// exit shortly after (see `App::poll_self_update`), which is what lets the
+/// helper's wait-loop finish and the copy proceed.
+fn stage_self_update(tag: &str) -> Result<(), String> {
+    let current_exe = std::env::current_exe().map_err(|e| format!("couldn't find my own exe: {e}"))?;
+    let install_dir = current_exe
+        .parent()
+        .ok_or("current exe has no parent directory")?
+        .to_path_buf();
+
+    let tmp = std::env::temp_dir().join(format!("tan-update-{}", tag.trim_start_matches('v')));
+    let _ = std::fs::remove_dir_all(&tmp); // clean up any half-finished previous attempt
+    std::fs::create_dir_all(&tmp).map_err(|e| format!("couldn't create a temp folder: {e}"))?;
+
+    let asset = platform_asset_name();
+    let zip_path = tmp.join(asset);
+    download_file(&asset_download_url(tag, asset), &zip_path)?;
+
+    let extract_dir = tmp.join("extracted");
+    extract_zip(&zip_path, &extract_dir)?;
+
+    let exe_name = if cfg!(windows) { "tan-tray.exe" } else { "tan-tray" };
+    if !extract_dir.join(exe_name).exists() {
+        return Err(format!("the downloaded build is missing {exe_name}"));
+    }
+
+    spawn_swap_and_relaunch(&extract_dir, &current_exe, &install_dir)?;
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn spawn_swap_and_relaunch(extract_dir: &Path, current_exe: &Path, install_dir: &Path) -> Result<(), String> {
+    let script = std::env::temp_dir().join(format!("tan-update-{}.bat", std::process::id()));
+    // Wait for OUR OWN pid to disappear from `tasklist` (so the exe is no
+    // longer locked), robocopy the new build over the install dir (its
+    // built-in retry/wait handles antivirus briefly scanning the new
+    // files), relaunch, then delete this script.
+    let body = format!(
+        "@echo off\r\n\
+         :wait\r\n\
+         tasklist /FI \"PID eq {pid}\" 2>NUL | find \"{pid}\" >NUL\r\n\
+         if not errorlevel 1 (\r\n\
+         \x20\x20timeout /t 1 /nobreak >NUL\r\n\
+         \x20\x20goto wait\r\n\
+         )\r\n\
+         robocopy \"{extract}\" \"{install}\" /E /IS /IT /R:5 /W:1 >NUL\r\n\
+         start \"\" \"{cur}\"\r\n\
+         del \"%~f0\"\r\n",
+        pid = std::process::id(),
+        extract = extract_dir.display(),
+        install = install_dir.display(),
+        cur = current_exe.display(),
+    );
+    std::fs::write(&script, body).map_err(|e| format!("couldn't write the updater script: {e}"))?;
+
+    // A plain tray app is never elevated; an install under Program Files
+    // needs admin rights to overwrite, so ask Windows for them (a real UAC
+    // prompt) only when the install dir turns out not to be writable as-is.
+    if dir_is_writable(install_dir) {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", "/min", &script.to_string_lossy()])
+            .spawn()
+            .map_err(|e| format!("couldn't launch the updater: {e}"))?;
+    } else {
+        std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-WindowStyle",
+                "Hidden",
+                "-Command",
+                &format!(
+                    "Start-Process -FilePath '{}' -WindowStyle Hidden -Verb RunAs",
+                    script.display()
+                ),
+            ])
+            .spawn()
+            .map_err(|e| format!("couldn't launch the elevated updater: {e}"))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn spawn_swap_and_relaunch(extract_dir: &Path, current_exe: &Path, install_dir: &Path) -> Result<(), String> {
+    let script = std::env::temp_dir().join(format!("tan-update-{}.sh", std::process::id()));
+    let body = format!(
+        "#!/bin/sh\n\
+         while kill -0 {pid} 2>/dev/null; do sleep 0.3; done\n\
+         cp -Rf \"{extract}/.\" \"{install}/\"\n\
+         chmod +x \"{cur}\"\n\
+         nohup \"{cur}\" >/dev/null 2>&1 &\n\
+         rm -f \"$0\"\n",
+        pid = std::process::id(),
+        extract = extract_dir.display(),
+        install = install_dir.display(),
+        cur = current_exe.display(),
+    );
+    std::fs::write(&script, body).map_err(|e| format!("couldn't write the updater script: {e}"))?;
+    let _ = std::process::Command::new("chmod").args(["+x", &script.to_string_lossy()]).status();
+    std::process::Command::new("sh")
+        .arg(&script)
+        .spawn()
+        .map_err(|e| format!("couldn't launch the updater: {e}"))?;
+    Ok(())
+}
+
 struct App {
     tray: TrayIcon,
     cfg: EngineConfig,
@@ -135,6 +352,10 @@ struct App {
     update_item: MenuItem,
     update_rx: Receiver<Option<String>>, // Some(tag) if a newer release exists
     update_ready: bool,
+    /// The newest tag seen, if any - what "click to update" actually installs.
+    latest_tag: Option<String>,
+    /// Set while a background download/swap is in flight; polled each tick.
+    updating_rx: Option<Receiver<Result<(), String>>>,
 
     /// The icon visual last actually drawn, so we only call set_icon (and
     /// redraw the 64x64 buffer) when something visible would change.
@@ -279,6 +500,8 @@ impl App {
             update_item,
             update_rx,
             update_ready: false,
+            latest_tag: None,
+            updating_rx: None,
             last_icon: IconVisual::Off,
         };
         app.restore_saved(); // reapply last session's choices before starting
@@ -439,9 +662,50 @@ impl App {
     fn poll_updates(&mut self) {
         while let Ok(msg) = self.update_rx.try_recv() {
             if let Some(tag) = msg {
-                self.update_item.set_text(format!("Update available: {tag}"));
+                self.update_item.set_text(format!("Update to {tag} (click to install)"));
                 self.update_ready = true;
+                self.latest_tag = Some(tag.clone());
                 self.set_tooltip(&format!("TAN - update available: {tag}"));
+            }
+        }
+    }
+
+    /// Kick off the download-and-swap in a background thread; if no update is
+    /// actually known yet, fall back to just opening the releases page (this
+    /// is also what "Check for updates" does before any check has landed).
+    fn start_self_update(&mut self) {
+        let Some(tag) = self.latest_tag.clone() else {
+            open_url(RELEASES_URL);
+            return;
+        };
+        if self.updating_rx.is_some() {
+            return; // already in progress
+        }
+        self.update_item.set_enabled(false);
+        self.set_tooltip(&format!("TAN - downloading {tag}..."));
+        let (tx, rx) = mpsc::channel();
+        self.updating_rx = Some(rx);
+        std::thread::spawn(move || {
+            let _ = tx.send(stage_self_update(&tag));
+        });
+    }
+
+    /// Drain the background update-install result. On success, stop the
+    /// audio engine cleanly and exit - the detached helper script is already
+    /// waiting for that exit to swap the files in and relaunch us.
+    fn poll_self_update(&mut self, control_flow: &mut ControlFlow) {
+        let Some(rx) = &self.updating_rx else { return };
+        let Ok(result) = rx.try_recv() else { return };
+        self.updating_rx = None;
+        match result {
+            Ok(()) => {
+                self.set_tooltip("TAN - update downloaded, restarting...");
+                self.engine = None; // release the audio devices before we vanish
+                *control_flow = ControlFlow::Exit;
+            }
+            Err(e) => {
+                self.update_item.set_enabled(true);
+                self.set_tooltip(&format!("TAN - update failed: {e}"));
             }
         }
     }
@@ -485,9 +749,7 @@ impl App {
                 self.import_settings();
             }
             "update" => {
-                // Whether or not the background check has flagged one, the
-                // releases page is where a build is downloaded.
-                open_url(RELEASES_URL);
+                self.start_self_update();
             }
             "enabled" => {
                 self.enabled = self.enabled_item.is_checked();

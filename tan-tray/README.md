@@ -23,6 +23,41 @@ To avoid hearing the audio twice, capture and playback should be different
 devices (for example capture your speakers and play to headphones), or route
 playback through a virtual audio device.
 
+## Troubleshooting: hearing the original AND TAN's copy
+
+TAN works by *capturing a copy* of what a device is playing (WASAPI loopback)
+and playing the processed result out somewhere else. That copy is non-
+destructive: the original device keeps right on playing to wherever it was
+already headed. If that's the same place TAN's output goes, you hear both,
+stacked.
+
+**The fix is always routing, never volume/mute at the Windows level.** Muting
+a device's system volume, or the app's session volume in the Windows Volume
+Mixer, silences it *before* TAN's loopback capture sees it too - you'd stop
+the doubling by also going deaf to the source TAN needs. The real fix is:
+make the thing you're capturing stop reaching your ears *some other way*,
+while leaving it fully live for TAN to read.
+
+**Mixer/router apps (SteelSeries Sonar, Voicemeeter, Nahimic, similar):**
+these already do a version of TAN's job - take an app's audio and mix it into
+your headphones. To make TAN the last step instead of a second copy:
+
+1. Point the source app (Stremio, a browser, etc.) at one of the mixer's
+   virtual channels - e.g. Sonar's "Media".
+2. In tan-tray: **Input** = that same channel (loopback), **Output** = your
+   real headphones/speakers.
+3. **In the mixer app itself, MUTE that channel - click the mute toggle, do
+   not drag its volume slider to 0%.** The slider and the mute button are not
+   the same thing: the slider is often just the *level* fed into a bus that's
+   already been mixed into headphones, while mute cuts that specific
+   contribution to the monitor mix outright, without touching the channel's
+   own exposed audio device - which is exactly what TAN is reading via
+   loopback. A slider at 0% did NOT stop the doubling; the mute toggle did.
+
+If your mixer doesn't expose a clean per-channel mute (only a slider), look
+for a "streamer mode" / "monitor" split, or route that channel to output
+hardware you don't have speakers connected to.
+
 ## Building
 
 ### Linux

@@ -35,6 +35,15 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\tan-tray.exe
+; tan-tray is a windowless tray app, so Restart Manager's usual "detect and
+; auto-close running apps" flow can't signal it to shut down gracefully -
+; that's what was hanging and then failing with Access Denied on Ignore.
+; tan-tray holds a mutex of this exact name for its whole lifetime (see
+; hold_app_mutex() in tan-tray/src/main.rs); AppMutex is Inno's reliable,
+; poll-based "is it still running" check, and turning off the RM-based
+; auto-close avoids the two mechanisms fighting each other.
+AppMutex=TANTrayAppMutex
+CloseApplications=no
 
 [Files]
 Source: "{#DistDir}\tan-tray.exe"; DestDir: "{app}"; Flags: ignoreversion

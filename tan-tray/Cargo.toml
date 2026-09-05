@@ -1,6 +1,6 @@
 [package]
 name = "tan-tray"
-version = "0.0.4"
+version = "0.0.5"
 edition = "2024"
 
 [[bin]]
@@ -13,3 +13,6 @@ tao = "0.30"
 tray-icon = "0.19"
 arboard = "3"
 rfd = "0.15"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Threading"] }
