@@ -1,0 +1,13 @@
+[package]
+name = "tan-tray"
+version = "0.0.1"
+edition = "2024"
+
+[[bin]]
+name = "tan-tray"
+path = "src/main.rs"
+
+[dependencies]
+tan-live = { path = "../tan-live" }
+tao = "0.30"
+tray-icon = "0.19"

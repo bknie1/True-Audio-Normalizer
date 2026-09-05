@@ -15,8 +15,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Install Linux audio dev headers
+      - name: Install Linux dev headers (audio + tray GUI)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev
       - run: cargo build --workspace --verbose
       - run: cargo test --workspace --verbose

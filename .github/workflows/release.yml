@@ -24,17 +24,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      - name: Install Linux audio dev headers
+      - name: Install Linux dev headers (audio + tray GUI)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev
 
-      - name: Build CLI, FFI, and (Windows) live tool
+      - name: Build CLI, FFI, live tool, and tray app
         shell: bash
         run: |
-          cargo build --release -p tan-cli -p tan-ffi
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cargo build --release -p tan-live
-          fi
+          cargo build --release -p tan-cli -p tan-ffi -p tan-live -p tan-tray
 
       - name: Assemble dist folder
         shell: bash
@@ -43,10 +42,9 @@ jobs:
           ext=""
           if [ "${{ matrix.os }}" = "windows-latest" ]; then ext=".exe"; fi
           cp "target/release/tan-cli${ext}" dist/
+          cp "target/release/tan-live${ext}" dist/
+          cp "target/release/tan-tray${ext}" dist/
           cp "target/release/${{ matrix.ffi-file }}" dist/
-          if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cp target/release/tan-live.exe dist/
-          fi
           cp README.md ELI5.md LICENSE dist/
 
       # Windows runners don't ship the `zip` CLI (that's Unix-only); use

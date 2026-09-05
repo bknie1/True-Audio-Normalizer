@@ -1,3 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["tan-core", "tan-cli", "tan-ffi", "tan-live"]
+members = ["tan-core", "tan-cli", "tan-ffi", "tan-live", "tan-tray"]
+# tan-tray pulls in GUI deps (tao/tray-icon) that need GTK on Linux and a
+# complete binutils dlltool on the Windows GNU toolchain. Keep it out of the
+# bare-`cargo build` set so everyday dev stays lightweight; CI builds it via
+# --workspace and you can always target it with `-p tan-tray`.
+default-members = ["tan-core", "tan-cli", "tan-ffi", "tan-live"]

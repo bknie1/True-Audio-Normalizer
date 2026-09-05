@@ -3,6 +3,10 @@ name = "tan-live"
 version = "0.0.1"
 edition = "2024"
 
+[lib]
+name = "tan_live"
+path = "src/lib.rs"
+
 [[bin]]
 name = "tan-live"
 path = "src/main.rs"
