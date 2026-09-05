@@ -12,3 +12,4 @@ tan-live = { path = "../tan-live" }
 tao = "0.30"
 tray-icon = "0.19"
 arboard = "3"
+rfd = "0.15"

@@ -130,8 +130,17 @@ impl App {
         )
         .expect("output submenu");
 
+        let export_item = MenuItem::with_id(MenuId::new("export"), "Export settings...", true, None);
+        let import_item = MenuItem::with_id(MenuId::new("import"), "Import settings...", true, None);
         let copy_item = MenuItem::with_id(MenuId::new("copy"), "Copy diagnostics", true, None);
         let quit_item = MenuItem::with_id(MenuId::new("quit"), "Quit", true, None);
+
+        let settings_menu = Submenu::with_items(
+            "Settings",
+            true,
+            &[&export_item, &import_item, &copy_item],
+        )
+        .expect("settings submenu");
 
         let menu = Menu::new();
         menu.append_items(&[
@@ -142,7 +151,7 @@ impl App {
             &capture_menu,
             &output_menu,
             &PredefinedMenuItem::separator(),
-            &copy_item,
+            &settings_menu,
             &quit_item,
         ])
         .expect("build menu");
@@ -174,10 +183,16 @@ impl App {
     }
 
     /// Load the last-used settings and reflect them in the menu, without
-    /// starting the engine (the caller does that). Missing/absent devices fall
-    /// back to System default. `loopback` is not restored - it's platform-fixed.
+    /// starting the engine (the caller does that).
     fn restore_saved(&mut self) {
         let saved = load_saved();
+        self.apply_saved(saved);
+    }
+
+    /// Apply a parsed settings set to state and the menu (no engine restart).
+    /// Missing/absent devices fall back to System default; `loopback` is
+    /// platform-fixed and never restored.
+    fn apply_saved(&mut self, saved: Saved) {
         if let Some(p) = saved.profile {
             self.cfg.profile = if p == "music" { ProfileKind::Music } else { ProfileKind::Movie };
         }
@@ -206,21 +221,56 @@ impl App {
         }
     }
 
-    /// Persist the current settings so the next launch restores them.
-    fn save(&self) {
-        let Some(path) = config_path() else { return };
-        if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        let body = format!(
+    /// The settings serialized as `key=value` text (used for save and export).
+    fn config_body(&self) -> String {
+        format!(
             "profile={}\nloopback={}\ncapture={}\noutput={}\nenabled={}\n",
             self.cfg.profile.label().to_lowercase(),
             self.cfg.loopback,
             self.cfg.capture.clone().unwrap_or_default(),
             self.cfg.output.clone().unwrap_or_default(),
             self.enabled,
-        );
-        let _ = std::fs::write(&path, body);
+        )
+    }
+
+    /// Persist the current settings so the next launch restores them.
+    fn save(&self) {
+        let Some(path) = config_path() else { return };
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(&path, self.config_body());
+    }
+
+    /// Export the current settings to a file the user picks.
+    fn export_settings(&self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .set_file_name("tan-settings.txt")
+            .add_filter("TAN settings", &["txt"])
+            .save_file()
+        {
+            match std::fs::write(&path, self.config_body()) {
+                Ok(()) => self.set_tooltip(&format!("TAN - settings exported to {}", path.display())),
+                Err(e) => self.set_tooltip(&format!("TAN - export failed: {e}")),
+            }
+        }
+    }
+
+    /// Import settings from a file the user picks, then apply and start.
+    fn import_settings(&mut self) {
+        if let Some(path) = rfd::FileDialog::new()
+            .add_filter("TAN settings", &["txt"])
+            .pick_file()
+        {
+            match std::fs::read_to_string(&path) {
+                Ok(text) => {
+                    self.apply_saved(parse_saved(&text));
+                    self.save();
+                    self.apply();
+                }
+                Err(e) => self.set_tooltip(&format!("TAN - import failed: {e}")),
+            }
+        }
     }
 
     /// (Re)start or stop the engine to match current state, and reflect the
@@ -280,6 +330,12 @@ impl App {
             }
             "copy" => {
                 self.copy_diagnostics();
+            }
+            "export" => {
+                self.export_settings();
+            }
+            "import" => {
+                self.import_settings();
             }
             "enabled" => {
                 self.enabled = self.enabled_item.is_checked();
