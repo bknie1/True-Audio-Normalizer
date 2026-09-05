@@ -852,6 +852,103 @@
       const hits = document.querySelectorAll(".wave-hit");
       const labels = document.querySelectorAll(".wave-labels span");
 
+      // A short, quiet, synthesized taste of the kind of content each band
+      // represents - all Web Audio, nothing to download. Lows: a soft
+      // sub-bass rumble. Mids: a voice-ish mid tone. Highs: a rising
+      // "it's gonna blow" swell into a soft explosion burst.
+      let actx = null;
+      let voices = [];
+      function stopVoices() {
+        voices.forEach((n) => {
+          try { n.stop(); } catch (e) {}
+          try { n.disconnect(); } catch (e) {}
+        });
+        voices = [];
+      }
+      function noiseBuffer(dur) {
+        const n = Math.floor(actx.sampleRate * dur);
+        const buf = actx.createBuffer(1, n, actx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+        return buf;
+      }
+      function playSample(zone) {
+        try {
+          actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+          actx.resume();
+        } catch (e) { return; }
+        stopVoices();
+        const t = actx.currentTime;
+        const out = actx.createGain(); // global keep-it-quiet trim
+        out.gain.value = 0.9;
+        out.connect(actx.destination);
+
+        const env = (node, peak, attack, dur) => {
+          const g = actx.createGain();
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(peak, t + attack);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+          node.connect(g);
+          g.connect(out);
+          return g;
+        };
+
+        if (zone === "lows") {
+          const o = actx.createOscillator();
+          o.type = "sine"; o.frequency.setValueAtTime(70, t);
+          const sub = actx.createOscillator();
+          sub.type = "sine"; sub.frequency.setValueAtTime(38, t);
+          env(o, 0.16, 0.2, 1.5);
+          env(sub, 0.1, 0.25, 1.5);
+          o.start(t); sub.start(t);
+          o.stop(t + 1.6); sub.stop(t + 1.6);
+          voices.push(o, sub);
+        } else if (zone === "mids") {
+          const o = actx.createOscillator();
+          o.type = "sawtooth"; o.frequency.setValueAtTime(180, t);
+          const bp = actx.createBiquadFilter();
+          bp.type = "bandpass"; bp.frequency.value = 950; bp.Q.value = 1.2;
+          const lfo = actx.createOscillator(); // gentle vibrato -> voice-ish
+          lfo.frequency.value = 5.5;
+          const lfoGain = actx.createGain(); lfoGain.gain.value = 6;
+          lfo.connect(lfoGain); lfoGain.connect(o.frequency);
+          o.connect(bp);
+          env(bp, 0.13, 0.08, 1.3);
+          o.start(t); lfo.start(t);
+          o.stop(t + 1.35); lfo.stop(t + 1.35);
+          voices.push(o, lfo);
+        } else if (zone === "highs") {
+          // Tension riser: pitch and rumble swell over ~1.1s...
+          const riser = actx.createOscillator();
+          riser.type = "sine";
+          riser.frequency.setValueAtTime(200, t);
+          riser.frequency.exponentialRampToValueAtTime(1300, t + 1.1);
+          const rg = actx.createGain();
+          rg.gain.setValueAtTime(0.0001, t);
+          rg.gain.exponentialRampToValueAtTime(0.09, t + 1.0);
+          rg.gain.exponentialRampToValueAtTime(0.0001, t + 1.25);
+          riser.connect(rg); rg.connect(out);
+          riser.start(t); riser.stop(t + 1.3);
+          voices.push(riser);
+
+          // ...then it blows: a soft noise burst through an opening lowpass.
+          const bt = t + 1.12;
+          const src = actx.createBufferSource();
+          src.buffer = noiseBuffer(0.7);
+          const lp = actx.createBiquadFilter();
+          lp.type = "lowpass";
+          lp.frequency.setValueAtTime(4500, bt);
+          lp.frequency.exponentialRampToValueAtTime(500, bt + 0.5);
+          const bg = actx.createGain();
+          bg.gain.setValueAtTime(0.0001, bt);
+          bg.gain.exponentialRampToValueAtTime(0.22, bt + 0.02);
+          bg.gain.exponentialRampToValueAtTime(0.0001, bt + 0.6);
+          src.connect(lp); lp.connect(bg); bg.connect(out);
+          src.start(bt); src.stop(bt + 0.7);
+          voices.push(src);
+        }
+      }
+
       function selectZone(zone) {
         hits.forEach((h) => h.classList.toggle("active", h.dataset.zone === zone));
         labels.forEach((l) => l.classList.toggle("active", l.dataset.zone === zone));
@@ -860,6 +957,8 @@
         });
         infoEl.style.setProperty("--zc", colors[zone]);
         infoEl.innerHTML = info[zone];
+        if (window.tanAurora) window.tanAurora.pin(colors[zone]);
+        playSample(zone);
       }
       hits.forEach((h) => h.addEventListener("click", () => selectZone(h.dataset.zone)));
     })();
@@ -904,7 +1003,17 @@
         return el.offsetTop + el.offsetHeight / 2;
       }
 
+      // When a Lows/Mids/Highs zone is selected in the explainer, the aurora
+      // pins to that zone's color so the whole page echoes the choice. Any
+      // scroll releases the pin and the color journey resumes.
+      let pinnedGlow = null;
+      bgLayer.style.transition = "background 0.4s ease";
+
       function update() {
+        if (pinnedGlow) {
+          bgLayer.style.setProperty("--glow", pinnedGlow);
+          return;
+        }
         const pos = window.scrollY + window.innerHeight / 2;
         let i = 0;
         while (i < anchors.length - 1 && center(anchors[i + 1].el) < pos) i++;
@@ -915,6 +1024,20 @@
         bgLayer.style.setProperty("--glow", lerp(a.color, b.color, t));
       }
 
+      window.tanAurora = {
+        pin(hex) {
+          // Push a bit past the scroll peak so the selection reads clearly.
+          pinnedGlow = lerp(neutral, hex, 0.8);
+          bgLayer.style.setProperty("--glow", pinnedGlow);
+        },
+        unpin() {
+          if (pinnedGlow) {
+            pinnedGlow = null;
+            update();
+          }
+        },
+      };
+
       // A plain timer-based throttle rather than requestAnimationFrame:
       // just as smooth for repainting a CSS variable, and doesn't depend on
       // the tab actually being rendered/foregrounded to run.
@@ -922,6 +1045,7 @@
       window.addEventListener(
         "scroll",
         () => {
+          window.tanAurora.unpin(); // scrolling resumes the color journey
           if (!ticking) {
             ticking = true;
             setTimeout(() => {
