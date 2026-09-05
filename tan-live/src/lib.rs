@@ -408,6 +408,39 @@ fn resolve(
     }
 }
 
+/// Pick a playback config that preserves the source's channels and rate when
+/// the device supports it (so surround is not needlessly downmixed), else the
+/// device default. Only F32 configs are considered (the streams are f32).
+fn choose_output_config(
+    dev: &cpal::Device,
+    want_ch: usize,
+    want_rate: u32,
+) -> Result<cpal::SupportedStreamConfig, String> {
+    if let Ok(ranges) = dev.supported_output_configs() {
+        let ranges: Vec<_> = ranges
+            .filter(|r| r.sample_format() == cpal::SampleFormat::F32)
+            .collect();
+        // 1. Exact channel match with the source rate in range.
+        for r in &ranges {
+            if r.channels() as usize == want_ch
+                && r.min_sample_rate() <= want_rate
+                && want_rate <= r.max_sample_rate()
+            {
+                return Ok(r.clone().with_sample_rate(want_rate));
+            }
+        }
+        // 2. Exact channel match, rate clamped into the supported window.
+        for r in &ranges {
+            if r.channels() as usize == want_ch {
+                let sr = want_rate.clamp(r.min_sample_rate(), r.max_sample_rate());
+                return Ok(r.clone().with_sample_rate(sr));
+            }
+        }
+    }
+    dev.default_output_config()
+        .map_err(|e| format!("no usable output format: {e}"))
+}
+
 /// Build and start a live session per `cfg`. On success TAN is already running;
 /// keep the returned handle alive for as long as you want it to run.
 pub fn start(cfg: &EngineConfig) -> Result<RunningEngine, String> {
@@ -446,11 +479,12 @@ pub fn start(cfg: &EngineConfig) -> Result<RunningEngine, String> {
     let in_rate = capture_config.sample_rate();
     let in_ch = capture_config.channels() as usize;
 
-    // The playback device runs at its own native format; TAN converts the
-    // processed audio to it, so any input can feed any output (a 96 kHz 7.1
-    // loopback into 48 kHz stereo headphones, say). No device pairing rules.
-    let out_config = playback_device
-        .default_output_config()
+    // Choose the playback format. To avoid needlessly collapsing surround, we
+    // prefer an output config that MATCHES the source's channel count (and
+    // rate) when the device supports it - so 7.1 stays 7.1 whenever the
+    // hardware can carry it, and downmix happens only when the output device
+    // genuinely has fewer channels. Falls back to the device default.
+    let out_config = choose_output_config(&playback_device, in_ch, in_rate)
         .map_err(|e| format!("playback device has no usable format: {e}"))?;
     let out_rate = out_config.sample_rate();
     let out_ch = out_config.channels() as usize;
