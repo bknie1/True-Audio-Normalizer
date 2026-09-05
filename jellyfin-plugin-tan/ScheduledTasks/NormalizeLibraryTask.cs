@@ -11,24 +11,27 @@ using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaEncoding;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Tan.ScheduledTasks;
 
 /// <summary>
-/// Batch-normalizes library audio/video through a local tan-server instance.
-/// For each item it extracts audio with Jellyfin's own ffmpeg, POSTs the WAV
-/// to tan-server's <c>/normalize</c> endpoint, and writes the result as a
-/// "&lt;name&gt; [TAN].wav" file - never touching or replacing the original,
-/// so this is safe to run repeatedly (an existing output is left alone;
-/// delete it to force a redo).
+/// Batch-normalizes library audio/video through a local tan-server instance
+/// and makes the result playable in Jellyfin itself.
 ///
-/// Scope, honestly stated: this proves and runs the actual DSP pipeline
-/// end to end. It does not yet register the output as a selectable
-/// alternate audio track in Jellyfin's player - that needs deeper library/
-/// metadata integration and is the natural next step once this pipeline
-/// itself is confirmed working against a real server.
+/// For an audio-only item it extracts audio with Jellyfin's own ffmpeg,
+/// sends it to tan-server's <c>/normalize</c> endpoint, and writes the
+/// result as a WAV. For a video item it does the same, then muxes the
+/// TAN-processed audio back with the ORIGINAL video stream (copied, not
+/// re-encoded) into a new container - same picture, normalized sound.
+/// Either way the original file is never touched or replaced; an existing
+/// output is left alone on later runs (delete it to force a redo).
+///
+/// <see cref="TanMediaSourceProvider"/> is what makes the result show up as
+/// a selectable "Play Version" in Jellyfin's own player - this task and that
+/// provider agree on where the output lives via <see cref="TanOutput"/>.
 /// </summary>
 public class NormalizeLibraryTask : IScheduledTask
 {
@@ -49,7 +52,7 @@ public class NormalizeLibraryTask : IScheduledTask
 
     public string Key => "TanNormalizeLibrary";
 
-    public string Description => "Runs library audio/video through TAN (via a local tan-server) and writes normalized copies alongside the originals.";
+    public string Description => "Runs library audio/video through TAN (via a local tan-server) and makes the result playable as an alternate version.";
 
     public string Category => "TAN";
 
@@ -101,34 +104,33 @@ public class NormalizeLibraryTask : IScheduledTask
     private async Task NormalizeOneAsync(BaseItem item, Configuration.PluginConfiguration config, CancellationToken cancellationToken)
     {
         var sourcePath = item.Path;
-        var outputDir = string.IsNullOrWhiteSpace(config.OutputFolder)
-            ? Path.GetDirectoryName(sourcePath) ?? "."
-            : config.OutputFolder;
-        Directory.CreateDirectory(outputDir);
-        var outputPath = Path.Combine(outputDir, $"{Path.GetFileNameWithoutExtension(sourcePath)} [TAN].wav");
+        var hasVideo = item.GetMediaStreams().Any(s => s.Type == MediaStreamType.Video);
+        var outputPath = TanOutput.PathFor(sourcePath, hasVideo, config.OutputFolder);
         if (File.Exists(outputPath))
         {
             _logger.LogDebug("TAN: already normalized, skipping {Path}", sourcePath);
             return;
         }
 
-        var wavPath = Path.Combine(Path.GetTempPath(), $"tan-extract-{Guid.NewGuid():N}.wav");
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
+
+        var extractedWav = Path.Combine(Path.GetTempPath(), $"tan-extract-{Guid.NewGuid():N}.wav");
+        var normalizedWav = Path.Combine(Path.GetTempPath(), $"tan-normalized-{Guid.NewGuid():N}.wav");
         try
         {
-            await ExtractWavAsync(sourcePath, wavPath, cancellationToken).ConfigureAwait(false);
-
-            using var wavStream = File.OpenRead(wavPath);
-            using var content = new StreamContent(wavStream);
-            content.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
-
-            var url = $"{config.ServerUrl.TrimEnd('/')}/normalize?profile={Uri.EscapeDataString(config.Profile)}";
-            using var response = await HttpClient.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
+            await ExtractWavAsync(sourcePath, extractedWav, cancellationToken).ConfigureAwait(false);
+            await PostToTanServerAsync(extractedWav, normalizedWav, config, cancellationToken).ConfigureAwait(false);
 
             var tmpOut = outputPath + ".tmp";
-            await using (var outStream = File.Create(tmpOut))
+            if (hasVideo)
             {
-                await response.Content.CopyToAsync(outStream, cancellationToken).ConfigureAwait(false);
+                // Copy the original video stream verbatim, replace only the
+                // audio - same picture, TAN-processed sound.
+                await MuxAsync(sourcePath, normalizedWav, tmpOut, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                File.Copy(normalizedWav, tmpOut, overwrite: true);
             }
 
             File.Move(tmpOut, outputPath, overwrite: true);
@@ -136,7 +138,8 @@ public class NormalizeLibraryTask : IScheduledTask
         }
         finally
         {
-            File.Delete(wavPath);
+            File.Delete(extractedWav);
+            File.Delete(normalizedWav);
         }
     }
 
@@ -147,6 +150,45 @@ public class NormalizeLibraryTask : IScheduledTask
     /// </summary>
     private async Task ExtractWavAsync(string sourcePath, string wavPath, CancellationToken cancellationToken)
     {
+        await RunFfmpegAsync(
+            new[] { "-y", "-i", sourcePath, "-vn", "-acodec", "pcm_s16le", "-ar", "48000", wavPath },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task PostToTanServerAsync(string wavPath, string outWavPath, Configuration.PluginConfiguration config, CancellationToken cancellationToken)
+    {
+        using var wavStream = File.OpenRead(wavPath);
+        using var content = new StreamContent(wavStream);
+        content.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
+
+        var url = $"{config.ServerUrl.TrimEnd('/')}/normalize?profile={Uri.EscapeDataString(config.Profile)}";
+        using var response = await HttpClient.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        await using var outStream = File.Create(outWavPath);
+        await response.Content.CopyToAsync(outStream, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Muxes the original video (copied, not re-encoded) with the
+    /// TAN-processed audio (encoded to AAC - much smaller than embedding raw
+    /// PCM in the final file) into a new Matroska container.
+    /// </summary>
+    private async Task MuxAsync(string originalVideoPath, string normalizedWavPath, string outputPath, CancellationToken cancellationToken)
+    {
+        await RunFfmpegAsync(
+            new[]
+            {
+                "-y", "-i", originalVideoPath, "-i", normalizedWavPath,
+                "-map", "0:v:0", "-map", "1:a:0",
+                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                outputPath,
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task RunFfmpegAsync(IReadOnlyList<string> args, CancellationToken cancellationToken)
+    {
         var psi = new ProcessStartInfo
         {
             FileName = _mediaEncoder.EncoderPath,
@@ -154,7 +196,7 @@ public class NormalizeLibraryTask : IScheduledTask
             RedirectStandardError = true,
             UseShellExecute = false,
         };
-        foreach (var arg in new[] { "-y", "-i", sourcePath, "-vn", "-acodec", "pcm_s16le", "-ar", "48000", wavPath })
+        foreach (var arg in args)
         {
             psi.ArgumentList.Add(arg);
         }
