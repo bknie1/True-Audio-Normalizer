@@ -171,6 +171,124 @@ pub fn list_outputs() -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Converts interleaved audio from the capture format (in_ch, in_rate) to the
+/// playback format (out_ch, out_rate): a per-frame channel downmix/upmix
+/// followed by stateful linear-interpolation resampling. Linear resampling is
+/// simple and dependency-free; it's more than adequate for dialogue and film,
+/// and the common case here (96 kHz -> 48 kHz) is a clean 2:1 decimation.
+struct FormatConverter {
+    in_ch: usize,
+    out_ch: usize,
+    step: f32,       // input frames advanced per output frame (in_rate / out_rate)
+    frac: f32,       // fractional position between prev and cur input frame
+    prev: Vec<f32>,  // previous input frame, already downmixed to out_ch
+    have_prev: bool,
+    identity: bool,
+    dm_scale: f32,   // headroom when summing many channels into fewer
+}
+
+impl FormatConverter {
+    fn new(in_ch: usize, in_rate: u32, out_ch: usize, out_rate: u32) -> Self {
+        FormatConverter {
+            in_ch,
+            out_ch,
+            step: in_rate as f32 / out_rate as f32,
+            frac: 0.0,
+            prev: vec![0.0; out_ch],
+            have_prev: false,
+            identity: in_ch == out_ch && in_rate == out_rate,
+            dm_scale: if in_ch > out_ch { 0.71 } else { 1.0 }, // ~ -3 dB
+        }
+    }
+
+    /// Mix one input frame down/up into `out` (length `out_ch`).
+    fn remix(&self, f: &[f32], out: &mut [f32]) {
+        if self.in_ch == self.out_ch {
+            out.copy_from_slice(f);
+        } else if self.in_ch == 1 {
+            for c in out.iter_mut() {
+                *c = f[0];
+            }
+        } else if self.out_ch == 2 {
+            let (mut l, mut r);
+            match self.in_ch {
+                6 => {
+                    // 5.1: FL FR FC LFE BL BR
+                    l = f[0] + 0.707 * f[2] + 0.707 * f[4];
+                    r = f[1] + 0.707 * f[2] + 0.707 * f[5];
+                }
+                8 => {
+                    // 7.1: FL FR FC LFE BL BR SL SR
+                    l = f[0] + 0.707 * f[2] + 0.707 * f[4] + 0.707 * f[6];
+                    r = f[1] + 0.707 * f[2] + 0.707 * f[5] + 0.707 * f[7];
+                }
+                _ => {
+                    // Unknown layout: even indices left, odd indices right.
+                    l = 0.0;
+                    r = 0.0;
+                    let (mut nl, mut nr) = (0.0f32, 0.0f32);
+                    for (k, &s) in f.iter().enumerate() {
+                        if k % 2 == 0 {
+                            l += s;
+                            nl += 1.0;
+                        } else {
+                            r += s;
+                            nr += 1.0;
+                        }
+                    }
+                    if nl > 0.0 {
+                        l /= nl;
+                    }
+                    if nr > 0.0 {
+                        r /= nr;
+                    }
+                }
+            }
+            out[0] = l * self.dm_scale;
+            out[1] = r * self.dm_scale;
+        } else if self.in_ch == 2 {
+            // Stereo up to more channels: L to even, R to odd.
+            for (c, o) in out.iter_mut().enumerate() {
+                *o = if c % 2 == 0 { f[0] } else { f[1] };
+            }
+        } else {
+            // Generic fallback: collapse to mono, spread across outputs.
+            let m: f32 = f.iter().sum::<f32>() / self.in_ch as f32;
+            for c in out.iter_mut() {
+                *c = m;
+            }
+        }
+    }
+
+    /// Append converted output-format samples for `input` (interleaved in_ch).
+    fn process(&mut self, input: &[f32], out: &mut Vec<f32>) {
+        if self.identity {
+            out.extend_from_slice(input);
+            return;
+        }
+        let frames = input.len() / self.in_ch;
+        let mut cur = vec![0.0f32; self.out_ch];
+        for f in 0..frames {
+            let frame = &input[f * self.in_ch..(f + 1) * self.in_ch];
+            self.remix(frame, &mut cur);
+            if !self.have_prev {
+                self.prev.copy_from_slice(&cur);
+                self.have_prev = true;
+                continue;
+            }
+            // Emit output frames sitting between prev and cur (linear interp).
+            while self.frac < 1.0 {
+                for c in 0..self.out_ch {
+                    out.push(self.prev[c] + (cur[c] - self.prev[c]) * self.frac);
+                }
+                self.frac += self.step;
+            }
+            self.frac -= 1.0;
+            self.prev.copy_from_slice(&cur);
+        }
+    }
+}
+
 /// A human-readable diagnostics dump: host, defaults, and every input/output
 /// device with the config it actually offers (OK or the exact error). The
 /// output-device probe uses `default_output_config`, which is the format TAN
@@ -283,26 +401,39 @@ pub fn start(cfg: &EngineConfig) -> Result<RunningEngine, String> {
             .default_input_config()
             .map_err(|e| format!("capture device has no usable input config: {e}"))?
     };
-    let sample_rate = capture_config.sample_rate();
-    let channels = capture_config.channels() as usize;
-    let rate_hz = sample_rate as u64;
+    let in_rate = capture_config.sample_rate();
+    let in_ch = capture_config.channels() as usize;
 
-    let target = ((rate_hz * cfg.latency_ms / 1000) as usize) * channels;
-    let cap = (rate_hz as usize * channels).max(target * 3).max(1024);
+    // The playback device runs at its own native format; TAN converts the
+    // processed audio to it, so any input can feed any output (a 96 kHz 7.1
+    // loopback into 48 kHz stereo headphones, say). No device pairing rules.
+    let out_config = playback_device
+        .default_output_config()
+        .map_err(|e| format!("playback device has no usable format: {e}"))?;
+    let out_rate = out_config.sample_rate();
+    let out_ch = out_config.channels() as usize;
+
+    // Ring holds output-format samples; size latency in those.
+    let target = ((out_rate as u64 * cfg.latency_ms / 1000) as usize) * out_ch;
+    let cap = (out_rate as usize * out_ch).max(target * 3).max(1024);
 
     let ring = Arc::new(Ring::new(cap));
-    let mut normalizer = Normalizer::new(sample_rate, channels, cfg.profile.profile());
+    let mut normalizer = Normalizer::new(in_rate, in_ch, cfg.profile.profile());
+    let mut converter = FormatConverter::new(in_ch, in_rate, out_ch, out_rate);
 
     let ring_in = ring.clone();
     let mut scratch: Vec<f32> = Vec::new();
+    let mut converted: Vec<f32> = Vec::new();
     let input_stream = capture_device
         .build_input_stream(
             capture_config.into(),
             move |data: &[f32], _| {
                 scratch.clear();
                 scratch.extend_from_slice(data);
-                normalizer.process(&mut scratch);
-                ring_in.push_slice(&scratch);
+                normalizer.process(&mut scratch); // at the input format
+                converted.clear();
+                converter.process(&scratch, &mut converted); // -> output format
+                ring_in.push_slice(&converted);
             },
             |err| eprintln!("capture stream error: {err}"),
             None,
@@ -311,8 +442,8 @@ pub fn start(cfg: &EngineConfig) -> Result<RunningEngine, String> {
 
     let ring_out = ring.clone();
     let playback_config = cpal::StreamConfig {
-        channels: channels as u16,
-        sample_rate,
+        channels: out_ch as u16,
+        sample_rate: out_rate,
         buffer_size: cpal::BufferSize::Default,
     };
     let output_stream = playback_device
@@ -333,14 +464,18 @@ pub fn start(cfg: &EngineConfig) -> Result<RunningEngine, String> {
     input_stream.play().map_err(|e| format!("failed to start capture: {e}"))?;
     output_stream.play().map_err(|e| format!("failed to start playback: {e}"))?;
 
+    let fmt = if in_rate == out_rate && in_ch == out_ch {
+        format!("{in_rate} Hz, {in_ch} ch")
+    } else {
+        format!("{in_rate} Hz {in_ch} ch -> {out_rate} Hz {out_ch} ch")
+    };
     let info = format!(
-        "{} ({}) -> TAN [{}] -> {}  |  {} Hz, {} ch, ~{} ms",
+        "{} ({}) -> TAN [{}] -> {}  |  {}, ~{} ms",
         capture_name,
         if cfg.loopback { "loopback" } else { "microphone" },
         cfg.profile.label(),
         output_name,
-        rate_hz,
-        channels,
+        fmt,
         cfg.latency_ms,
     );
 
@@ -355,7 +490,67 @@ pub fn start(cfg: &EngineConfig) -> Result<RunningEngine, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::Ring;
+    use super::{FormatConverter, Ring};
+
+    #[test]
+    fn converter_identity_passthrough() {
+        let mut c = FormatConverter::new(2, 48000, 2, 48000);
+        let mut out = Vec::new();
+        c.process(&[0.1, 0.2, 0.3, 0.4], &mut out);
+        assert_eq!(out, vec![0.1, 0.2, 0.3, 0.4]);
+    }
+
+    #[test]
+    fn converter_downsamples_2to1_ratio() {
+        // 96k stereo -> 48k stereo: roughly half as many frames out.
+        let mut c = FormatConverter::new(2, 96000, 2, 48000);
+        let frames_in = 1000;
+        let mut input = Vec::with_capacity(frames_in * 2);
+        for i in 0..frames_in {
+            let v = (i as f32 * 0.01).sin();
+            input.push(v);
+            input.push(v);
+        }
+        let mut out = Vec::new();
+        c.process(&input, &mut out);
+        let frames_out = out.len() / 2;
+        // ~500 out for 1000 in; allow small slack for edge/startup framing.
+        assert!(
+            (frames_out as i32 - 500).abs() <= 3,
+            "expected ~500 output frames, got {frames_out}"
+        );
+    }
+
+    #[test]
+    fn converter_upsamples_1to2_ratio() {
+        let mut c = FormatConverter::new(2, 48000, 2, 96000);
+        let frames_in = 1000;
+        let input: Vec<f32> = (0..frames_in * 2).map(|i| (i as f32 * 0.01).sin()).collect();
+        let mut out = Vec::new();
+        c.process(&input, &mut out);
+        let frames_out = out.len() / 2;
+        assert!(
+            (frames_out as i32 - 2000).abs() <= 4,
+            "expected ~2000 output frames, got {frames_out}"
+        );
+    }
+
+    #[test]
+    fn converter_downmixes_71_to_stereo() {
+        // Same rate, 8ch -> 2ch: one frame in, one frame out, left/right split.
+        let mut c = FormatConverter::new(8, 48000, 2, 48000);
+        // FL FR FC LFE BL BR SL SR - put 1.0 only on FL, expect L>0, R==0.
+        let mut out = Vec::new();
+        // need two frames because the resampler holds the first as `prev`.
+        let frame = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+        c.process(&frame, &mut out);
+        c.process(&frame, &mut out);
+        assert!(out.len() >= 2);
+        let l = out[out.len() - 2];
+        let r = out[out.len() - 1];
+        assert!(l > 0.0, "left should carry FL, got {l}");
+        assert_eq!(r, 0.0, "right should be silent for FL-only, got {r}");
+    }
 
     #[test]
     fn roundtrip_preserves_order() {
