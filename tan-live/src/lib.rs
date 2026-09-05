@@ -10,7 +10,10 @@
 //! read index. This is cross-platform via cpal (WASAPI/CoreAudio/ALSA); on
 //! Windows, "loopback" capture reads an output device's own playing audio.
 
+pub mod platform;
+
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use platform::{AudioBackend, CpalBackend};
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -200,17 +203,11 @@ pub struct RunningEngine {
 }
 
 pub fn list_inputs() -> Vec<String> {
-    let host = cpal::default_host();
-    host.input_devices()
-        .map(|it| it.map(|d| d.to_string()).collect())
-        .unwrap_or_default()
+    CpalBackend::new().inputs().into_iter().map(|d| d.name).collect()
 }
 
 pub fn list_outputs() -> Vec<String> {
-    let host = cpal::default_host();
-    host.output_devices()
-        .map(|it| it.map(|d| d.to_string()).collect())
-        .unwrap_or_default()
+    CpalBackend::new().outputs().into_iter().map(|d| d.name).collect()
 }
 
 /// Converts interleaved audio from the capture format (in_ch, in_rate) to the
@@ -338,49 +335,37 @@ impl FormatConverter {
 /// loopback source. Handy to copy to the clipboard when something won't start.
 pub fn diagnostics() -> String {
     use std::fmt::Write;
-    let host = cpal::default_host();
+    let backend = CpalBackend::new();
     let mut s = String::new();
     let _ = writeln!(s, "TAN diagnostics");
     let _ = writeln!(s, "version: {}", env!("CARGO_PKG_VERSION"));
     let _ = writeln!(s, "os: {} {}", std::env::consts::OS, std::env::consts::ARCH);
-    let _ = writeln!(s, "cpal host: {:?}", host.id());
+    let _ = writeln!(s, "backend: {}", backend.name());
 
-    let def_in = host.default_input_device().map(|d| d.to_string());
-    let def_out = host.default_output_device().map(|d| d.to_string());
-    let _ = writeln!(s, "default input:  {}", def_in.clone().unwrap_or_else(|| "(none)".into()));
-    let _ = writeln!(s, "default output: {}", def_out.clone().unwrap_or_else(|| "(none)".into()));
+    let inputs = backend.inputs();
+    let outputs = backend.outputs();
+    let name_of = |list: &[platform::DeviceInfo]| {
+        list.iter().find(|d| d.is_default).map(|d| d.name.clone()).unwrap_or_else(|| "(none)".into())
+    };
+    let _ = writeln!(s, "default input:  {}", name_of(&inputs));
+    let _ = writeln!(s, "default output: {}", name_of(&outputs));
+
+    let dump = |s: &mut String, list: &[platform::DeviceInfo]| {
+        for (i, d) in list.iter().enumerate() {
+            let def = if d.is_default { "  [default]" } else { "" };
+            let cfg = if d.channels == 0 {
+                "ERR no usable format".to_string()
+            } else {
+                format!("{} Hz, {} ch [{}]", d.sample_rate, d.channels, d.layout.labels())
+            };
+            let _ = writeln!(s, "  [{i}] {}{def}\n        {cfg}", d.name);
+        }
+    };
 
     let _ = writeln!(s, "\ninput devices (microphones), capture format:");
-    match host.input_devices() {
-        Ok(devs) => {
-            for (i, d) in devs.enumerate() {
-                let name = d.to_string();
-                let cfg = match d.default_input_config() {
-                    Ok(c) => format!("OK {} Hz, {} ch, {:?}", c.sample_rate(), c.channels(), c.sample_format()),
-                    Err(e) => format!("ERR {e}"),
-                };
-                let def = if Some(&name) == def_in.as_ref() { "  [default]" } else { "" };
-                let _ = writeln!(s, "  [{i}] {name}{def}\n        {cfg}");
-            }
-        }
-        Err(e) => { let _ = writeln!(s, "  (enumeration failed: {e})"); }
-    }
-
+    dump(&mut s, &inputs);
     let _ = writeln!(s, "\noutput devices, render/loopback format (what TAN captures in loopback):");
-    match host.output_devices() {
-        Ok(devs) => {
-            for (i, d) in devs.enumerate() {
-                let name = d.to_string();
-                let cfg = match d.default_output_config() {
-                    Ok(c) => format!("OK {} Hz, {} ch, {:?}", c.sample_rate(), c.channels(), c.sample_format()),
-                    Err(e) => format!("ERR {e}"),
-                };
-                let def = if Some(&name) == def_out.as_ref() { "  [default]" } else { "" };
-                let _ = writeln!(s, "  [{i}] {name}{def}\n        {cfg}");
-            }
-        }
-        Err(e) => { let _ = writeln!(s, "  (enumeration failed: {e})"); }
-    }
+    dump(&mut s, &outputs);
     s
 }
 
