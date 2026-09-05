@@ -264,7 +264,7 @@
   </div>
   <div>
     <div class="challenge">Music</div>
-    <h2 id="music-title">A comedian at a piano, 1966</h2>
+    <h2 id="music-title">A mathematician's guide to plagiarism</h2>
     <p class="desc">Just voice and piano, recorded dry and close-mic'd, no
     post-production riding the fader. The dynamics are entirely
     human - a whispered aside, then a belted punchline, on purpose, because
@@ -276,7 +276,15 @@
 
       <div class="song-opt">
         <label class="song-btn">
-          <input type="radio" name="song" value="dope-peddler" checked aria-label="The Old Dope Peddler" aria-describedby="tip-dope-peddler" autocomplete="off">
+          <input type="radio" name="song" value="lobachevsky" checked aria-label="Lobachevsky" aria-describedby="tip-lobachevsky" autocomplete="off">
+          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 5h12l-6.5 7L18 19H6l6.5-7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </label>
+        <span class="tip" role="tooltip" id="tip-lobachevsky">Lobachevsky</span>
+      </div>
+
+      <div class="song-opt">
+        <label class="song-btn">
+          <input type="radio" name="song" value="dope-peddler" aria-label="The Old Dope Peddler" aria-describedby="tip-dope-peddler" autocomplete="off">
           <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v18M8 7.5c0-1.5 1.5-2.5 4-2.5s4 1 4 2.5-1.5 2.5-4 2.5-4 1-4 2.5 1.5 2.5 4 2.5 4-1 4-2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </label>
         <span class="tip" role="tooltip" id="tip-dope-peddler">The Old Dope Peddler</span>
@@ -308,14 +316,6 @@
 
       <div class="song-opt">
         <label class="song-btn">
-          <input type="radio" name="song" value="lobachevsky" aria-label="Lobachevsky" aria-describedby="tip-lobachevsky" autocomplete="off">
-          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M6 5h12l-6.5 7L18 19H6l6.5-7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-        </label>
-        <span class="tip" role="tooltip" id="tip-lobachevsky">Lobachevsky</span>
-      </div>
-
-      <div class="song-opt">
-        <label class="song-btn">
           <input type="radio" name="song" value="hold-your-hand" aria-label="I Hold Your Hand in Mine" aria-describedby="tip-hold-your-hand" autocomplete="off">
           <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2C4.5 6.7 6.8 4.5 9.3 4.5c1.2 0 2.3.6 2.7 1.5.4-.9 1.5-1.5 2.7-1.5 2.5 0 4.8 2.2 4.8 5.3C19.5 15.4 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
         </label>
@@ -323,7 +323,7 @@
       </div>
     </fieldset>
     <div class="row-label">Original</div>
-    <audio controls preload="none" id="orig-music" src="audio/samples/music-lehrer-dope-peddler.mp3"></audio>
+    <audio controls preload="none" id="orig-music" src="audio/samples/music-lehrer-lobachevsky.mp3"></audio>
     <div id="result-music" hidden>
       <div class="row-label">After TAN</div>
       <audio controls id="proc-music"></audio>
@@ -524,13 +524,18 @@
     update();
   })();
 
-  // Pop-in reveal as each row scrolls into view.
+  // Pop-in reveal as each row scrolls into view. This is also where each
+  // audio card pre-processes its Before/After, so by the time you reach it
+  // the comparison is ready and defaulted to "Before".
+  const AUDIO_KEYS = ["music", "game", "podcast"];
   const rowObserver = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
         if (entry.isIntersecting) {
           entry.target.classList.add("in");
           rowObserver.unobserve(entry.target);
+          const key = AUDIO_KEYS.find((k) => entry.target.classList.contains(k));
+          if (key) processAudioCard(key);
         }
       }
     },
@@ -587,23 +592,18 @@
     origMusic.src = `audio/samples/music-lehrer-${key}.mp3`;
     musicTitle.textContent = songTitles[key];
 
-    // The processed result belongs to whichever track was last run through
-    // TAN, so a new track tears the compare player down and restores the
-    // original-only player + Run button.
+    // Tear the old track's compare player down, then re-prep the new one so it
+    // lands back on the ready Before/After view (no manual re-run).
     if (cardCompare.music) { cardCompare.music.destroy(); delete cardCompare.music; }
     const canvas = document.getElementById("wave-music");
     canvas.hidden = true;
     delete canvas.dataset.tan;
     delete canvas._seek;
-    origMusic.hidden = false;
-    const origLabel = origMusic.previousElementSibling;
-    if (origLabel && origLabel.classList.contains("row-label")) origLabel.hidden = false;
-    const runBtn = document.querySelector('button[data-key="music"]');
-    if (runBtn) { runBtn.hidden = false; runBtn.disabled = false; }
     document.getElementById("result-music").hidden = true;
     document.getElementById("result-music").innerHTML = "";
     document.getElementById("wave-legend-music").hidden = true;
     document.getElementById("status-music").textContent = "";
+    processAudioCard("music");
   }
 
   // The browser owns the checked state (native radios) and keyboard
@@ -955,61 +955,66 @@
     origEl.addEventListener("emptied", () => { drawnFor = null; });
   });
 
+  // Each audio card pre-processes lazily when it scrolls into view and then
+  // shows the seamless Before/After player defaulting to "Before" - no
+  // separate "Run through TAN" step, no interface swap, nothing autoplays.
+  const cardBusy = {};
+  async function processAudioCard(key) {
+    if (cardCompare[key] || cardBusy[key]) return;
+    cardBusy[key] = true;
+    const status = document.getElementById(`status-${key}`);
+    const origEl = document.getElementById(`orig-${key}`);
+    const result = document.getElementById(`result-${key}`);
+    const canvas = document.getElementById(`wave-${key}`);
+    const btn = document.querySelector(`button[data-key="${key}"]`);
+    try {
+      status.textContent = "Preparing before / after...";
+      const { inter, channels, sampleRate, frames } = await decodeToInterleaved(origEl.currentSrc || origEl.src);
+      const { instance } = await WebAssembly.instantiate(await wasmBytesPromise, {});
+      const wasm = instance.exports;
+      const len = frames * channels;
+      const ptr = wasm.tan_alloc(len);
+      let heap = new Float32Array(wasm.memory.buffer, ptr, len);
+      heap.set(inter);
+      wasm.tan_normalize_offline(ptr, len, sampleRate, channels, 0);
+      heap = new Float32Array(wasm.memory.buffer, ptr, len);
+      const processed = heap.slice(); // copy out before the buffer detaches
+
+      const rowColor = getComputedStyle(btn).backgroundColor;
+      drawWaveform(canvas, inter, processed, channels, rowColor);
+      canvas.dataset.tan = "1";
+      document.getElementById(`wave-legend-${key}`).hidden = false;
+
+      // Replace the native original player with the seamless A/B player.
+      origEl.pause();
+      origEl.hidden = true;
+      const origLabel = origEl.previousElementSibling;
+      if (origLabel && origLabel.classList.contains("row-label")) origLabel.hidden = true;
+      result.innerHTML = "";
+      result.hidden = false;
+
+      const cmp = createCompare({
+        tracks: [
+          { label: "Before", buffer: bufferFromInterleaved(inter, channels, sampleRate) },
+          { label: "After TAN", buffer: bufferFromInterleaved(processed, channels, sampleRate) },
+        ],
+        mount: result, canvas, accent: rowColor,
+      });
+      cardCompare[key] = cmp;
+      wireWaveSeek(canvas, cmp, rowColor);
+      cmp.select(0);   // default to Before; the toggle flips to After instantly
+      status.textContent = "";
+      if (btn) btn.hidden = true;
+    } catch (err) {
+      status.textContent = "Couldn't prepare: " + err.message;
+      if (btn) { btn.hidden = false; btn.disabled = false; } // manual fallback
+    } finally {
+      cardBusy[key] = false;
+    }
+  }
+  // The button is now a fallback (auto-prep failed); clicking it retries.
   document.querySelectorAll('button[data-key]:not([data-key="movie"])').forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const key = btn.dataset.key;
-      const status = document.getElementById(`status-${key}`);
-      const origEl = document.getElementById(`orig-${key}`);
-      const result = document.getElementById(`result-${key}`);
-      const canvas = document.getElementById(`wave-${key}`);
-      btn.disabled = true;
-      try {
-        status.textContent = "Fetching and decoding...";
-        const { inter, channels, sampleRate, frames } = await decodeToInterleaved(origEl.currentSrc || origEl.src);
-
-        status.textContent = "Running TAN two-pass...";
-        const { instance } = await WebAssembly.instantiate(await wasmBytesPromise, {});
-        const wasm = instance.exports;
-        const len = frames * channels;
-        const ptr = wasm.tan_alloc(len);
-        let heap = new Float32Array(wasm.memory.buffer, ptr, len);
-        heap.set(inter);
-        wasm.tan_normalize_offline(ptr, len, sampleRate, channels, 0);
-        heap = new Float32Array(wasm.memory.buffer, ptr, len);
-        const processed = heap.slice(); // copy out before the buffer detaches
-
-        status.textContent = "Building comparison...";
-        const rowColor = getComputedStyle(btn).backgroundColor;
-        drawWaveform(canvas, inter, processed, channels, rowColor);
-        canvas.dataset.tan = "1";
-        document.getElementById(`wave-legend-${key}`).hidden = false;
-
-        // The native original player is replaced by the seamless A/B player.
-        origEl.pause();
-        origEl.hidden = true;
-        const origLabel = origEl.previousElementSibling;
-        if (origLabel && origLabel.classList.contains("row-label")) origLabel.hidden = true;
-        result.innerHTML = "";
-        result.hidden = false;
-
-        const cmp = createCompare({
-          tracks: [
-            { label: "Before", buffer: bufferFromInterleaved(inter, channels, sampleRate) },
-            { label: "After TAN", buffer: bufferFromInterleaved(processed, channels, sampleRate) },
-          ],
-          mount: result, canvas, accent: rowColor,
-        });
-        cardCompare[key] = cmp;
-        wireWaveSeek(canvas, cmp, rowColor);
-        cmp.select(1);   // land on After TAN
-        cmp.play();
-        status.textContent = "";
-        btn.hidden = true; // one-shot; the compare player is the control now
-      } catch (err) {
-        status.textContent = "Couldn't process: " + err.message;
-        btn.disabled = false;
-      }
-    });
+    btn.addEventListener("click", () => processAudioCard(btn.dataset.key));
   });
 
   // ---- Movie: one video carries the picture (muted); both the original
@@ -1054,11 +1059,11 @@
         ];
         const gains = buffers.map((b, i) => {
           const g = ctx.createGain();
-          g.gain.value = i === 1 ? 1 : 0; // default After TAN
+          g.gain.value = i === 0 ? 1 : 0; // default Before
           g.connect(ctx.destination);
           return g;
         });
-        let active = 1, sources = null, startAt = 0, startCtxTime = 0;
+        let active = 0, sources = null, startAt = 0, startCtxTime = 0;
         function stopSources() {
           if (sources) { sources.forEach((s) => { try { s.stop(); } catch (e) {} s.disconnect(); }); sources = null; }
         }
@@ -1096,7 +1101,7 @@
         ["Before", "After TAN"].forEach((label, i) => {
           const b = document.createElement("button");
           b.type = "button"; b.className = "cmp-seg"; b.textContent = label;
-          b.setAttribute("aria-pressed", i === 1 ? "true" : "false");
+          b.setAttribute("aria-pressed", i === 0 ? "true" : "false");
           b.addEventListener("click", () => {
             active = i;
             const now = ctx.currentTime;
@@ -1115,7 +1120,6 @@
 
         wireWaveSeek(canvas, elementController(video), rowColor);
         movieBtn.hidden = true;
-        video.play().catch(() => {});
         status.textContent = "";
       } catch (err) {
         status.textContent = "Couldn't process: " + err.message;
