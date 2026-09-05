@@ -4,7 +4,7 @@
 //! plays the result out a second device. The engine itself lives in
 //! `tan_live::{start, EngineConfig, ...}` and is shared with the tray app.
 
-use cpal::traits::{DeviceTrait, HostTrait};
+use cpal::traits::HostTrait;
 use std::env;
 use std::process::exit;
 use tan_live::{start, EngineConfig, ProfileKind};

@@ -215,9 +215,21 @@ pub fn start(cfg: &EngineConfig) -> Result<RunningEngine, String> {
     let capture_name = capture_device.to_string();
     let output_name = playback_device.to_string();
 
-    let capture_config = capture_device
-        .default_input_config()
-        .map_err(|e| format!("capture device has no usable input config: {e}"))?;
+    // For loopback the capture device is a *render* (output) endpoint. cpal
+    // turns an input stream on a render device into a loopback capture, but the
+    // usable format is that device's render format - so ask for its OUTPUT
+    // config here. `default_input_config()` correctly errors on a render
+    // device ("Device does not support input"), which was the bug. A real
+    // microphone (non-loopback) is a capture device and uses its input config.
+    let capture_config = if cfg.loopback {
+        capture_device
+            .default_output_config()
+            .map_err(|e| format!("capture device (loopback) has no usable format: {e}"))?
+    } else {
+        capture_device
+            .default_input_config()
+            .map_err(|e| format!("capture device has no usable input config: {e}"))?
+    };
     let sample_rate = capture_config.sample_rate();
     let channels = capture_config.channels() as usize;
     let rate_hz = sample_rate as u64;
