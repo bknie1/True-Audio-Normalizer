@@ -65,6 +65,27 @@ jobs:
           name: tan-${{ matrix.name }}
           path: tan-${{ matrix.name }}.zip
 
+      # A friendly click-through installer for the tray app (Start Menu entry,
+      # optional run-at-sign-in), built with Inno Setup on the Windows runner.
+      - name: Build Windows installer
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            "/DAppVersion=$version" `
+            "/DDistDir=$PWD\dist" `
+            "/DOutDir=$PWD" `
+            packaging\windows\tan-setup.iss
+
+      - name: Upload Windows installer
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tan-windows-installer
+          path: tan-setup-*.exe
+
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -77,5 +98,7 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*/*.zip
+          files: |
+            artifacts/*/*.zip
+            artifacts/*/*.exe
           generate_release_notes: true
