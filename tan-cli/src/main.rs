@@ -1,9 +1,8 @@
-mod wav;
-
 use std::env;
 use std::process::exit;
+use tan_core::wav;
+use tan_core::wav::WavSpec;
 use tan_core::{LoudnessMeter, Normalizer, Profile};
-use wav::WavSpec;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

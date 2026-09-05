@@ -33,7 +33,7 @@ jobs:
       - name: Build CLI, FFI, live tool, and tray app
         shell: bash
         run: |
-          cargo build --release -p tan-cli -p tan-ffi -p tan-live -p tan-tray
+          cargo build --release -p tan-cli -p tan-ffi -p tan-live -p tan-tray -p tan-server
 
       - name: Assemble dist folder
         shell: bash
@@ -44,6 +44,7 @@ jobs:
           cp "target/release/tan-cli${ext}" dist/
           cp "target/release/tan-live${ext}" dist/
           cp "target/release/tan-tray${ext}" dist/
+          cp "target/release/tan-server${ext}" dist/
           cp "target/release/${{ matrix.ffi-file }}" dist/
           cp README.md ELI5.md LICENSE dist/
 

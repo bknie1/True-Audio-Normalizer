@@ -2518,6 +2518,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tan-server"
+version = "0.0.5"
+dependencies = [
+ "tan-core",
+]
+
+[[package]]
 name = "tan-tray"
 version = "0.0.5"
 dependencies = [

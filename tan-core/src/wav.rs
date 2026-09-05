@@ -1,3 +1,7 @@
+//! A hand-written WAV (RIFF/PCM) codec - no external crate. Generic over
+//! `Read`/`Write` so the same code serves a CLI reading/writing files and a
+//! server reading/writing HTTP request/response bodies in memory.
+
 use std::fs::File;
 use std::io::{self, BufReader, BufWriter, Read, Write};
 
@@ -19,9 +23,14 @@ fn read_u16(bytes: &[u8]) -> u16 {
     u16::from_le_bytes(bytes.try_into().unwrap())
 }
 
+/// Read a WAV file from disk.
 pub fn read_wav(path: &str) -> io::Result<(WavSpec, Vec<f32>)> {
-    let mut r = BufReader::new(File::open(path)?);
+    read_wav_from(BufReader::new(File::open(path)?))
+}
 
+/// Read WAV data from anything `Read` (a file, a `Cursor<&[u8]>` over an HTTP
+/// body, ...).
+pub fn read_wav_from<R: Read>(mut r: R) -> io::Result<(WavSpec, Vec<f32>)> {
     let mut riff_header = [0u8; 12];
     r.read_exact(&mut riff_header)?;
     if &riff_header[0..4] != b"RIFF" || &riff_header[8..12] != b"WAVE" {
@@ -87,13 +96,18 @@ fn decode_samples(data: &[u8], bits_per_sample: u16) -> io::Result<Vec<f32>> {
     }
 }
 
+/// Write a WAV file to disk.
 pub fn write_wav(path: &str, spec: &WavSpec, samples: &[f32]) -> io::Result<()> {
+    write_wav_to(BufWriter::new(File::create(path)?), spec, samples)
+}
+
+/// Write WAV data to anything `Write` (a file, a `Vec<u8>` HTTP response
+/// body, ...).
+pub fn write_wav_to<W: Write>(mut w: W, spec: &WavSpec, samples: &[f32]) -> io::Result<()> {
     let bytes_per_sample = (spec.bits_per_sample / 8) as u32;
     let data_len = samples.len() as u32 * bytes_per_sample;
     let byte_rate = spec.sample_rate * spec.channels as u32 * bytes_per_sample;
     let block_align = spec.channels * bytes_per_sample as u16;
-
-    let mut w = BufWriter::new(File::create(path)?);
 
     w.write_all(b"RIFF")?;
     w.write_all(&(36 + data_len).to_le_bytes())?; // file size minus the 8 bytes for "RIFF"+this field
@@ -146,5 +160,21 @@ mod tests {
         }
 
         std::fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn round_trip_in_memory() {
+        let spec = WavSpec { sample_rate: 48000, channels: 2, bits_per_sample: 16 };
+        let samples: Vec<f32> = vec![0.1, -0.1, 0.2, -0.2, 0.3, -0.3];
+        let mut buf: Vec<u8> = Vec::new();
+        write_wav_to(&mut buf, &spec, &samples).unwrap();
+
+        let (read_spec, read_samples) = read_wav_from(std::io::Cursor::new(&buf)).unwrap();
+        assert_eq!(read_spec.sample_rate, spec.sample_rate);
+        assert_eq!(read_spec.channels, spec.channels);
+        assert_eq!(read_samples.len(), samples.len());
+        for (a, b) in samples.iter().zip(read_samples.iter()) {
+            assert!((a - b).abs() < 0.0001);
+        }
     }
 }

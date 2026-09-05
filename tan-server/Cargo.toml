@@ -1,0 +1,11 @@
+[package]
+name = "tan-server"
+version = "0.0.5"
+edition = "2024"
+
+[[bin]]
+name = "tan-server"
+path = "src/main.rs"
+
+[dependencies]
+tan-core = { path = "../tan-core" }

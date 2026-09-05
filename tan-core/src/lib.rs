@@ -2,6 +2,7 @@ mod biquad;
 mod limiter;
 mod loudness;
 mod offline;
+pub mod wav;
 
 pub use limiter::Limiter;
 pub use loudness::LoudnessMeter;

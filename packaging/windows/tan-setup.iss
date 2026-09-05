@@ -47,6 +47,7 @@ CloseApplications=no
 
 [Files]
 Source: "{#DistDir}\tan-tray.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#DistDir}\tan-server.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#DistDir}\tan-live.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#DistDir}\tan-cli.exe";  DestDir: "{app}"; Flags: ignoreversion
 Source: "{#DistDir}\tan.dll";      DestDir: "{app}"; Flags: ignoreversion
