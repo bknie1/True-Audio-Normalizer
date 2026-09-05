@@ -2,3 +2,7 @@
 *.local
 /demo-*.wav
 /.claude/settings.local.json
+
+# .NET build output (jellyfin-plugin-tan)
+[Bb]in/
+[Oo]bj/
