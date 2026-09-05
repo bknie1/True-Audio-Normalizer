@@ -95,10 +95,14 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Create release
+      - name: Create draft release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/*/*.zip
             artifacts/*/*.exe
           generate_release_notes: true
+          # Built and attached, but hidden until you click Publish - so you can
+          # download the assets and test on another machine first. Publishing it
+          # makes it the "latest" release the Get TAN button and updater serve.
+          draft: true
