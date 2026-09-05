@@ -54,6 +54,8 @@ struct App {
     enabled_item: CheckMenuItem,
     movie_item: CheckMenuItem,
     music_item: CheckMenuItem,
+    /// Last engine wiring or error, included in copied diagnostics.
+    last_status: String,
 
     // Parallel arrays: menu item, and the device spec it selects (None = default).
     capture_items: Vec<CheckMenuItem>,
@@ -126,6 +128,7 @@ impl App {
         )
         .expect("output submenu");
 
+        let copy_item = MenuItem::with_id(MenuId::new("copy"), "Copy diagnostics to clipboard", true, None);
         let quit_item = MenuItem::with_id(MenuId::new("quit"), "Quit", true, None);
 
         let menu = Menu::new();
@@ -137,6 +140,7 @@ impl App {
             &capture_menu,
             &output_menu,
             &PredefinedMenuItem::separator(),
+            &copy_item,
             &quit_item,
         ])
         .expect("build menu");
@@ -156,6 +160,7 @@ impl App {
             enabled_item,
             movie_item,
             music_item,
+            last_status: String::new(),
             capture_items,
             capture_specs,
             output_items,
@@ -170,6 +175,7 @@ impl App {
     fn apply(&mut self) {
         self.engine = None; // dropping the handle stops both audio streams
         if !self.enabled {
+            self.last_status = "paused".to_string();
             self.set_tooltip("TAN - paused");
             return;
         }
@@ -177,14 +183,34 @@ impl App {
             Ok(engine) => {
                 let info = engine.info.clone();
                 self.engine = Some(engine);
+                self.last_status = format!("on: {info}");
                 self.set_tooltip(&format!("TAN - on\n{info}"));
             }
             Err(err) => {
                 self.enabled = false;
                 self.enabled_item.set_checked(false);
+                self.last_status = format!("error: {err}");
                 self.set_tooltip(&format!("TAN - error\n{err}"));
                 eprintln!("TAN could not start: {err}");
             }
+        }
+    }
+
+    /// Assemble a diagnostics report and put it on the clipboard.
+    fn copy_diagnostics(&mut self) {
+        let report = format!(
+            "{}\nprofile: {}\nloopback: {}\ncapture spec: {:?}\noutput spec: {:?}\nlast status: {}\n\n{}",
+            "== TAN tray diagnostics ==",
+            self.cfg.profile.label(),
+            self.cfg.loopback,
+            self.cfg.capture,
+            self.cfg.output,
+            self.last_status,
+            tan_live::diagnostics(),
+        );
+        match arboard::Clipboard::new().and_then(|mut c| c.set_text(report)) {
+            Ok(()) => self.set_tooltip("TAN - diagnostics copied to clipboard"),
+            Err(e) => self.set_tooltip(&format!("TAN - clipboard error: {e}")),
         }
     }
 
@@ -198,6 +224,9 @@ impl App {
             "quit" => {
                 self.engine = None;
                 *control_flow = ControlFlow::Exit;
+            }
+            "copy" => {
+                self.copy_diagnostics();
             }
             "enabled" => {
                 self.enabled = self.enabled_item.is_checked();

@@ -12,6 +12,11 @@ use tan_live::{start, EngineConfig, ProfileKind};
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
 
+    if args.iter().any(|a| a == "--diagnostics") {
+        print!("{}", tan_live::diagnostics());
+        return;
+    }
+
     if args.iter().any(|a| a == "--list-devices" || a == "--help" || a == "-h") {
         list_devices();
         return;
@@ -99,6 +104,7 @@ fn list_devices() {
          \x20 --profile movie|music      DSP profile (default: movie)\n\
          \x20 --latency-ms <n>           buffered latency target (default: 200)\n\
          \x20 --list-devices             show this list and exit\n\
+         \x20 --diagnostics              dump devices + the config each offers, and exit\n\
          \n\
          Names match case-insensitively as a substring; indices are the [n] shown above.\n\
          Tip: to normalize a movie without hearing it twice, send --output to headphones\n\

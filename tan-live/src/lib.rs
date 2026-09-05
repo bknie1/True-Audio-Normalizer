@@ -171,6 +171,59 @@ pub fn list_outputs() -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// A human-readable diagnostics dump: host, defaults, and every input/output
+/// device with the config it actually offers (OK or the exact error). The
+/// output-device probe uses `default_output_config`, which is the format TAN
+/// captures in loopback - so an "ERR" there means that device can't be a
+/// loopback source. Handy to copy to the clipboard when something won't start.
+pub fn diagnostics() -> String {
+    use std::fmt::Write;
+    let host = cpal::default_host();
+    let mut s = String::new();
+    let _ = writeln!(s, "TAN diagnostics");
+    let _ = writeln!(s, "version: {}", env!("CARGO_PKG_VERSION"));
+    let _ = writeln!(s, "os: {} {}", std::env::consts::OS, std::env::consts::ARCH);
+    let _ = writeln!(s, "cpal host: {:?}", host.id());
+
+    let def_in = host.default_input_device().map(|d| d.to_string());
+    let def_out = host.default_output_device().map(|d| d.to_string());
+    let _ = writeln!(s, "default input:  {}", def_in.clone().unwrap_or_else(|| "(none)".into()));
+    let _ = writeln!(s, "default output: {}", def_out.clone().unwrap_or_else(|| "(none)".into()));
+
+    let _ = writeln!(s, "\ninput devices (microphones), capture format:");
+    match host.input_devices() {
+        Ok(devs) => {
+            for (i, d) in devs.enumerate() {
+                let name = d.to_string();
+                let cfg = match d.default_input_config() {
+                    Ok(c) => format!("OK {} Hz, {} ch, {:?}", c.sample_rate(), c.channels(), c.sample_format()),
+                    Err(e) => format!("ERR {e}"),
+                };
+                let def = if Some(&name) == def_in.as_ref() { "  [default]" } else { "" };
+                let _ = writeln!(s, "  [{i}] {name}{def}\n        {cfg}");
+            }
+        }
+        Err(e) => { let _ = writeln!(s, "  (enumeration failed: {e})"); }
+    }
+
+    let _ = writeln!(s, "\noutput devices, render/loopback format (what TAN captures in loopback):");
+    match host.output_devices() {
+        Ok(devs) => {
+            for (i, d) in devs.enumerate() {
+                let name = d.to_string();
+                let cfg = match d.default_output_config() {
+                    Ok(c) => format!("OK {} Hz, {} ch, {:?}", c.sample_rate(), c.channels(), c.sample_format()),
+                    Err(e) => format!("ERR {e}"),
+                };
+                let def = if Some(&name) == def_out.as_ref() { "  [default]" } else { "" };
+                let _ = writeln!(s, "  [{i}] {name}{def}\n        {cfg}");
+            }
+        }
+        Err(e) => { let _ = writeln!(s, "  (enumeration failed: {e})"); }
+    }
+    s
+}
+
 fn resolve(
     devices: &[cpal::Device],
     spec: Option<&str>,
