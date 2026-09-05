@@ -524,6 +524,23 @@
     different kind of demo: it shows TAN <em>not</em> over-correcting.
     Content that's already flat should come out basically untouched, and
     that restraint is as important as the leveling itself.</p>
+    <fieldset class="song-picker" id="game-picker">
+      <legend class="sr-only">Choose a game track</legend>
+      <div class="song-opt">
+        <label class="song-btn">
+          <input type="radio" name="game-track" value="8bit" checked aria-label="8-bit Battle Theme" aria-describedby="tip-g-8bit" autocomplete="off">
+          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 15h3v-6h4v6h4v-6h4v6h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </label>
+        <span class="tip" role="tooltip" id="tip-g-8bit">8-bit Battle Theme &middot; chiptune</span>
+      </div>
+      <div class="song-opt">
+        <label class="song-btn">
+          <input type="radio" name="game-track" value="lowbitfever" aria-label="Lowbitfever chiptune" aria-describedby="tip-g-lbf" autocomplete="off">
+          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </label>
+        <span class="tip" role="tooltip" id="tip-g-lbf">Lowbitfever &middot; chiptune (Intikrec)</span>
+      </div>
+    </fieldset>
     <div class="row-label">Original</div>
     <audio controls preload="none" id="orig-game" src="audio/samples/game-8bit.wav"></audio>
     <div id="result-game" hidden>
@@ -534,9 +551,10 @@
     <div class="wave-legend" id="wave-legend-game" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - wherever the color pulls in from the gray is where TAN did its work</div>
     <div><button data-key="game">Run through TAN</button></div>
     <div class="status" id="status-game"></div>
-    <div class="credit">"8 Bit Battle Theme" by celestialghost8, CC0 (public
-    domain).
-    <a href="https://opengameart.org/content/8-bit-battle-theme-famitracker" target="_blank" rel="noopener">Source</a>.</div>
+    <div class="credit">"8 Bit Battle Theme" by celestialghost8, CC0
+    (<a href="https://opengameart.org/content/8-bit-battle-theme-famitracker" target="_blank" rel="noopener">source</a>).
+    "Lowbitfever" by Intikrec, CC0
+    (<a href="https://archive.org/details/intikrec-lowbitfever" target="_blank" rel="noopener">source</a>).</div>
   </div>
 </div>
 
@@ -558,6 +576,23 @@
     laughter and cross-talk. Nobody was evening this out in real time, which
     is exactly the kind of natural, human volume swing TAN is built to
     smooth over.</p>
+    <fieldset class="song-picker" id="podcast-picker">
+      <legend class="sr-only">Choose a spoken-word clip</legend>
+      <div class="song-opt">
+        <label class="song-btn">
+          <input type="radio" name="podcast-track" value="interview" checked aria-label="Two-person interview" aria-describedby="tip-p-interview" autocomplete="off">
+          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 5h10v7H7l-3 3v-3H3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 10h11v6h-3v3l-3-3h-5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        </label>
+        <span class="tip" role="tooltip" id="tip-p-interview">Two-person interview</span>
+      </div>
+      <div class="song-opt">
+        <label class="song-btn">
+          <input type="radio" name="podcast-track" value="ohenry" aria-label="Dramatic reading - O. Henry" aria-describedby="tip-p-ohenry" autocomplete="off">
+          <svg class="glyph" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 6C9.5 4.3 6 4.3 3.5 5.2v13C6 17.3 9.5 17.3 12 19c2.5-1.7 6-1.7 8.5-.8v-13C18 4.3 14.5 4.3 12 6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><line x1="12" y1="6" x2="12" y2="19" stroke="currentColor" stroke-width="1.7"/></svg>
+        </label>
+        <span class="tip" role="tooltip" id="tip-p-ohenry">Dramatic reading &middot; O. Henry (LibriVox)</span>
+      </div>
+    </fieldset>
     <div class="row-label">Original</div>
     <audio controls preload="none" id="orig-podcast" src="audio/samples/podcast-interview.mp3"></audio>
     <div id="result-podcast" hidden>
@@ -568,16 +603,18 @@
     <div class="wave-legend" id="wave-legend-podcast" hidden><span class="dot" style="background:#98968f"></span>original <span class="dot" style="background:var(--accent-row)"></span>after TAN · click the wave to jump around - wherever the color pulls in from the gray is where TAN did its work</div>
     <div><button data-key="podcast">Run through TAN</button></div>
     <div class="status" id="status-podcast"></div>
-    <div class="credit">Creative Commons Aotearoa New Zealand interview,
-    Radio Active "Caffeine and Aspirin" (2013), CC BY 3.0 NZ.
-    <a href="https://archive.org/details/CreativeCommonsInterviewRadioActive" target="_blank" rel="noopener">Source</a>.</div>
+    <div class="credit">Interview: Radio Active "Caffeine and Aspirin"
+    (2013), CC BY 3.0 NZ
+    (<a href="https://archive.org/details/CreativeCommonsInterviewRadioActive" target="_blank" rel="noopener">source</a>).
+    Reading: "A Comedy in Rubber" by O. Henry, read for LibriVox, public
+    domain (<a href="https://archive.org/details/short_story_051_1203_librivox" target="_blank" rel="noopener">source</a>).</div>
   </div>
 </div>
 
 <footer>
-  All four sources are public domain or Creative Commons licensed, credited
-  above. Everything here runs client-side in WebAssembly; nothing is
-  uploaded. <a href="index.html">Back to TAN</a>
+  Every sample is the author's own work, public domain, or Creative Commons,
+  credited under each card. Everything here runs client-side in WebAssembly;
+  nothing is uploaded. <a href="index.html">Back to TAN</a>
   <br>&copy; 2026 Brandon Knieriem. The TAN source code is MIT licensed; this site's text and design are not.
 </footer>
 
@@ -759,6 +796,35 @@
   // The browser owns the checked state (native radios) and keyboard
   // handling (Tab once, arrow keys between options); this just reacts to it.
   songPicker.addEventListener("change", (e) => selectSong(e.target.value));
+
+  // Game and podcast cards each get a small picker too. Same teardown-and-
+  // re-prep flow as selectSong, driven by a per-card filename map.
+  const trackFile = {
+    game: { "8bit": "game-8bit.wav", "lowbitfever": "game-lowbitfever.mp3" },
+    podcast: { "interview": "podcast-interview.mp3", "ohenry": "podcast-ohenry.mp3" },
+  };
+  function switchTrack(cardKey, value) {
+    const file = trackFile[cardKey] && trackFile[cardKey][value];
+    if (!file) return;
+    const el = document.getElementById(`orig-${cardKey}`);
+    el.pause();
+    el.src = `audio/samples/${file}`;
+    el.hidden = false;
+    if (cardCompare[cardKey]) { cardCompare[cardKey].destroy(); delete cardCompare[cardKey]; }
+    const canvas = document.getElementById(`wave-${cardKey}`);
+    canvas.hidden = true;
+    delete canvas.dataset.tan;
+    delete canvas._seek;
+    document.getElementById(`result-${cardKey}`).hidden = true;
+    document.getElementById(`result-${cardKey}`).innerHTML = "";
+    document.getElementById(`wave-legend-${cardKey}`).hidden = true;
+    document.getElementById(`status-${cardKey}`).textContent = "";
+    processAudioCard(cardKey);
+  }
+  ["game", "podcast"].forEach((cardKey) => {
+    const picker = document.getElementById(`${cardKey}-picker`);
+    if (picker) picker.addEventListener("change", (e) => switchTrack(cardKey, e.target.value));
+  });
 
   // Tooltip dismiss/restore per SC 1.4.13: Escape hides them without moving
   // focus, and they come back on the next pointer move or focus change.
