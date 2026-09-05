@@ -135,6 +135,18 @@
     margin: 0.75rem 0 1.1rem; padding: 0; border: 0; min-width: 0;
   }
   .song-opt { position: relative; }
+  /* Temporarily deprecated tracks: hidden from the picker but left in the
+     markup and on disk, so re-enabling one is just deleting it from this list. */
+  .song-opt:has(input[value="wdwgfh"]),
+  .song-opt:has(input[value="mask"]),
+  .song-opt:has(input[value="ennui"]),
+  .song-opt:has(input[value="constructing"]),
+  .song-opt:has(input[value="grey"]),
+  .song-opt:has(input[value="sweet-thing-dub"]),
+  .song-opt:has(input[value="tump"]),
+  .song-opt:has(input[value="yooo"]),
+  .song-opt:has(input[value="possibilities"]),
+  .song-opt:has(input[value="someday"]) { display: none; }
 
   /* Icon-only tiles by request; the full song title lives in each input's
      aria-label and in the tooltip, which shows on hover AND keyboard focus. */
