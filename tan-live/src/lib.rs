@@ -426,9 +426,15 @@ fn choose_output_config(
         .map_err(|e| format!("no usable output format: {e}"))
 }
 
-/// Build and start a live session per `cfg`. On success TAN is already running;
-/// keep the returned handle alive for as long as you want it to run.
+/// Build and start a live session per `cfg`, via the default platform backend.
+/// On success TAN is already running; keep the returned handle alive for as
+/// long as you want it to run.
 pub fn start(cfg: &EngineConfig) -> Result<RunningEngine, String> {
+    CpalBackend::new().run(cfg)
+}
+
+/// The cpal-backed implementation of a live session (behind `AudioBackend::run`).
+pub(crate) fn cpal_run(cfg: &EngineConfig) -> Result<RunningEngine, String> {
     let host = cpal::default_host();
     let inputs: Vec<cpal::Device> = host.input_devices().map(|i| i.collect()).unwrap_or_default();
     let outputs: Vec<cpal::Device> = host.output_devices().map(|i| i.collect()).unwrap_or_default();
@@ -480,6 +486,11 @@ pub fn start(cfg: &EngineConfig) -> Result<RunningEngine, String> {
 
     let ring = Arc::new(Ring::new(cap));
     let mut normalizer = Normalizer::new(in_rate, in_ch, cfg.profile.profile());
+    // Position-aware leveling: weight the loudness measurement by speaker role
+    // (center/dialogue up, LFE out, surround/height down) for multichannel
+    // capture, so the gain rider follows speech. Stereo/mono is unaffected.
+    let layout = platform::standard_layout(in_ch);
+    normalizer.set_channel_weights(&layout.loudness_weights());
     let mut converter = FormatConverter::new(in_ch, in_rate, out_ch, out_rate);
 
     let ring_in = ring.clone();

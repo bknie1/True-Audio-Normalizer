@@ -94,6 +94,28 @@ pub fn standard_layout(channels: usize) -> ChannelLayout {
     ChannelLayout(v)
 }
 
+impl ChannelLayout {
+    /// Per-channel loudness-measurement weights for dialogue-protecting,
+    /// position-aware leveling: the center channel dominates (that's where film
+    /// dialogue lives), front L/R are normal, surrounds and height count less,
+    /// and the LFE is excluded (it's not speech and carries huge energy). Fed
+    /// to `Normalizer::set_channel_weights`.
+    pub fn loudness_weights(&self) -> Vec<f32> {
+        use ChannelPosition::*;
+        self.0
+            .iter()
+            .map(|p| match p {
+                FrontCenter => 2.0,
+                FrontLeft | FrontRight => 1.0,
+                SideLeft | SideRight | BackLeft | BackRight => 0.5,
+                TopFrontLeft | TopFrontRight | TopBackLeft | TopBackRight => 0.4,
+                LowFrequency => 0.0,
+                Unknown => 1.0,
+            })
+            .collect()
+    }
+}
+
 /// What a backend can tell us about a device.
 #[derive(Clone, Debug)]
 pub struct DeviceInfo {
@@ -112,6 +134,9 @@ pub trait AudioBackend {
     fn name(&self) -> String;
     fn inputs(&self) -> Vec<DeviceInfo>;
     fn outputs(&self) -> Vec<DeviceInfo>;
+    /// Build and start a live session. The engine depends only on this - a
+    /// native per-OS backend implements the same method with its own I/O.
+    fn run(&self, cfg: &crate::EngineConfig) -> Result<crate::RunningEngine, String>;
 }
 
 /// The default cross-platform backend (cpal over WASAPI/CoreAudio/ALSA).
@@ -175,6 +200,10 @@ impl AudioBackend for CpalBackend {
         let default = self.host.default_output_device().map(|d| d.to_string());
         let devs = self.host.output_devices().ok().map(|it| it.collect());
         Self::collect(devs, default, false)
+    }
+
+    fn run(&self, cfg: &crate::EngineConfig) -> Result<crate::RunningEngine, String> {
+        crate::cpal_run(cfg)
     }
 }
 

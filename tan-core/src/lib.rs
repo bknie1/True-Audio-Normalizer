@@ -234,6 +234,14 @@ impl Normalizer {
         self.gain_db
     }
 
+    /// Set per-channel loudness-measurement weights from the speaker layout
+    /// (one per channel). Lets the gain rider follow, say, the center/dialogue
+    /// channel while discounting LFE and surround/height. No-op if the length
+    /// doesn't match the channel count. Stereo/mono callers can ignore this.
+    pub fn set_channel_weights(&mut self, weights: &[f32]) {
+        self.meter.set_weights(weights);
+    }
+
     /// Process interleaved samples in place. All channels share one gain so
     /// the stereo/surround image never shifts.
     pub fn process(&mut self, interleaved: &mut [f32]) {
