@@ -66,13 +66,12 @@ struct App {
 
 impl App {
     fn new() -> Self {
-        // Platform-appropriate capture list.
+        // Platform-appropriate capture list: Windows captures an output device
+        // via loopback; macOS/Linux capture an input/monitor source.
         #[cfg(target_os = "windows")]
-        let (capture_names, loopback, capture_title) =
-            (tan_live::list_outputs(), true, "Capture (what's playing)");
+        let (capture_names, loopback) = (tan_live::list_outputs(), true);
         #[cfg(not(target_os = "windows"))]
-        let (capture_names, loopback, capture_title) =
-            (tan_live::list_inputs(), false, "Capture (input / monitor)");
+        let (capture_names, loopback) = (tan_live::list_inputs(), false);
 
         let output_names = tan_live::list_outputs();
 
@@ -106,7 +105,7 @@ impl App {
             capture_specs.push(Some(i.to_string()));
         }
         let capture_menu = Submenu::with_items(
-            capture_title,
+            "Input",
             true,
             &capture_items.iter().map(|i| i as &dyn tray_icon::menu::IsMenuItem).collect::<Vec<_>>(),
         )
@@ -122,13 +121,13 @@ impl App {
             output_specs.push(Some(i.to_string()));
         }
         let output_menu = Submenu::with_items(
-            "Output (play TAN to)",
+            "Output",
             true,
             &output_items.iter().map(|i| i as &dyn tray_icon::menu::IsMenuItem).collect::<Vec<_>>(),
         )
         .expect("output submenu");
 
-        let copy_item = MenuItem::with_id(MenuId::new("copy"), "Copy diagnostics to clipboard", true, None);
+        let copy_item = MenuItem::with_id(MenuId::new("copy"), "Copy diagnostics", true, None);
         let quit_item = MenuItem::with_id(MenuId::new("quit"), "Quit", true, None);
 
         let menu = Menu::new();
@@ -267,12 +266,127 @@ impl App {
     }
 }
 
-/// A simple solid TAN-orange tray icon, generated so there's no asset to ship.
+/// The TAN badge icon, drawn in code from the same geometry as docs/icon.svg
+/// (a rounded orange badge with seven cream waveform bars) so there's no asset
+/// to ship and no rasterizer dependency. Rendered at 64x64 with a little edge
+/// feathering; the tray scales it down.
 fn make_icon() -> Icon {
-    let (w, h) = (32u32, 32u32);
-    let mut rgba = Vec::with_capacity((w * h * 4) as usize);
-    for _ in 0..(w * h) {
-        rgba.extend_from_slice(&[0xe0, 0x76, 0x4a, 0xff]); // #e0764a
+    let (rgba, s) = icon_rgba();
+    Icon::from_rgba(rgba, s, s).expect("valid icon")
+}
+
+fn icon_rgba() -> (Vec<u8>, u32) {
+    const S: usize = 64;
+    let k = S as f32 / 128.0; // the SVG uses a 0..128 viewBox
+
+    // Badge gradient (SVG #badge): #c86a3d -> #9c451f, top-left to bottom-right.
+    let g0 = [0xc8u8, 0x6a, 0x3d];
+    let g1 = [0x9cu8, 0x45, 0x1f];
+    // Bars: (x-center, y-top, y-bottom, color) in 128-space; stroke-width 8.
+    let bars: [(f32, f32, f32, [u8; 3]); 7] = [
+        (22.0, 58.0, 70.0, [0xff, 0xd1, 0x66]),
+        (36.0, 34.0, 94.0, [0xff, 0xdd, 0x8c]),
+        (50.0, 50.0, 78.0, [0xff, 0xe4, 0xa8]),
+        (64.0, 24.0, 104.0, [0xff, 0xec, 0xc4]),
+        (78.0, 48.0, 80.0, [0xfb, 0xee, 0xe0]),
+        (92.0, 42.0, 86.0, [0xf7, 0xf6, 0xf3]),
+        (106.0, 44.0, 84.0, [0xf7, 0xf6, 0xf3]),
+    ];
+    let radius = 26.0 * k; // corner radius
+    let hw = 4.0 * k; // bar half-width (stroke-width 8 / 2)
+    let edge = S as f32;
+
+    // Signed coverage of a rounded-rect at (px,py): 1 inside, 0 outside, with a
+    // ~1px feathered border.
+    let rrect_cov = |px: f32, py: f32| -> f32 {
+        let inset = 0.5;
+        let (x0, y0, x1, y1) = (inset, inset, edge - inset, edge - inset);
+        // distance outside the rounded rect (0 if inside)
+        let cx = px.clamp(x0 + radius, x1 - radius);
+        let cy = py.clamp(y0 + radius, y1 - radius);
+        let dx = (px - cx).abs().max(0.0);
+        let dy = (py - cy).abs().max(0.0);
+        // inside the straight edges?
+        let outside = if px < x0 || px > x1 || py < y0 || py > y1 {
+            // in a corner zone, use radial distance
+            (((dx).powi(2) + (dy).powi(2)).sqrt() - radius).max(0.0)
+        } else {
+            let corner = ((dx).powi(2) + (dy).powi(2)).sqrt() - radius;
+            corner.max(0.0)
+        };
+        (1.0 - outside).clamp(0.0, 1.0)
+    };
+
+    // Distance from a point to a vertical segment (for capsule-shaped bars).
+    let seg_dist = |px: f32, py: f32, cx: f32, top: f32, bot: f32| -> f32 {
+        let dx = px - cx;
+        if py < top {
+            (dx * dx + (py - top) * (py - top)).sqrt()
+        } else if py > bot {
+            (dx * dx + (py - bot) * (py - bot)).sqrt()
+        } else {
+            dx.abs()
+        }
+    };
+
+    let mut rgba = vec![0u8; S * S * 4];
+    for y in 0..S {
+        for x in 0..S {
+            let px = x as f32 + 0.5;
+            let py = y as f32 + 0.5;
+            let cov = rrect_cov(px, py);
+            if cov <= 0.0 {
+                continue; // transparent outside the badge
+            }
+            // Base badge gradient along the diagonal.
+            let t = ((px + py) / (2.0 * edge)).clamp(0.0, 1.0);
+            let mut col = [
+                (g0[0] as f32 + (g1[0] as f32 - g0[0] as f32) * t) as u8,
+                (g0[1] as f32 + (g1[1] as f32 - g0[1] as f32) * t) as u8,
+                (g0[2] as f32 + (g1[2] as f32 - g0[2] as f32) * t) as u8,
+            ];
+            // Overlay bars (nearest-covered wins), with soft edges.
+            for &(bx, bt, bb, bc) in &bars {
+                let d = seg_dist(px, py, bx * k, bt * k, bb * k);
+                let a = (hw + 0.5 - d).clamp(0.0, 1.0); // 1 inside, feathered edge
+                if a > 0.0 {
+                    col = [
+                        (col[0] as f32 * (1.0 - a) + bc[0] as f32 * a) as u8,
+                        (col[1] as f32 * (1.0 - a) + bc[1] as f32 * a) as u8,
+                        (col[2] as f32 * (1.0 - a) + bc[2] as f32 * a) as u8,
+                    ];
+                }
+            }
+            let i = (y * S + x) * 4;
+            rgba[i] = col[0];
+            rgba[i + 1] = col[1];
+            rgba[i + 2] = col[2];
+            rgba[i + 3] = (cov * 255.0) as u8;
+        }
     }
-    Icon::from_rgba(rgba, w, h).expect("valid icon")
+    (rgba, S as u32)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::icon_rgba;
+
+    #[test]
+    fn icon_is_shaped_not_a_square() {
+        let (rgba, s) = icon_rgba();
+        let s = s as usize;
+        let at = |x: usize, y: usize| {
+            let i = (y * s + x) * 4;
+            (rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3])
+        };
+        // Corner is outside the rounded badge -> transparent.
+        assert_eq!(at(0, 0).3, 0, "top-left corner should be transparent");
+        // Center is inside the badge -> opaque.
+        assert_eq!(at(s / 2, s / 2).3, 255, "center should be opaque");
+        // The tall middle bar (#ffecc4) crosses the center column; expect a
+        // light, cream-ish pixel there, not the dark badge orange.
+        let (r, g, b, a) = at(s / 2, s / 2);
+        assert_eq!(a, 255);
+        assert!(r > 200 && g > 180 && b > 150, "center bar should be cream, got {r},{g},{b}");
+    }
 }
