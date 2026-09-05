@@ -12,6 +12,7 @@
 //! Hide the console window on Windows release builds (this is a tray app).
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use tao::event::{Event, StartCause};
@@ -102,7 +103,9 @@ impl App {
         capture_specs.push(None);
         for (i, name) in capture_names.iter().enumerate() {
             capture_items.push(CheckMenuItem::with_id(MenuId::new(format!("cap:{i}")), name, true, false, None));
-            capture_specs.push(Some(i.to_string()));
+            // Store the device NAME (resolve() matches by substring); stable
+            // across restarts and reordering, unlike an index.
+            capture_specs.push(Some(name.clone()));
         }
         let capture_menu = Submenu::with_items(
             "Input",
@@ -118,7 +121,7 @@ impl App {
         output_specs.push(None);
         for (i, name) in output_names.iter().enumerate() {
             output_items.push(CheckMenuItem::with_id(MenuId::new(format!("out:{i}")), name, true, false, None));
-            output_specs.push(Some(i.to_string()));
+            output_specs.push(Some(name.clone()));
         }
         let output_menu = Submenu::with_items(
             "Output",
@@ -165,8 +168,59 @@ impl App {
             output_items,
             output_specs,
         };
+        app.restore_saved(); // reapply last session's choices before starting
         app.apply();
         app
+    }
+
+    /// Load the last-used settings and reflect them in the menu, without
+    /// starting the engine (the caller does that). Missing/absent devices fall
+    /// back to System default. `loopback` is not restored - it's platform-fixed.
+    fn restore_saved(&mut self) {
+        let saved = load_saved();
+        if let Some(p) = saved.profile {
+            self.cfg.profile = if p == "music" { ProfileKind::Music } else { ProfileKind::Movie };
+        }
+        self.movie_item.set_checked(self.cfg.profile == ProfileKind::Movie);
+        self.music_item.set_checked(self.cfg.profile == ProfileKind::Music);
+
+        if let Some(cap) = saved.capture {
+            let spec = if cap.is_empty() { None } else { Some(cap) };
+            let idx = self.capture_specs.iter().position(|s| *s == spec).unwrap_or(0);
+            self.cfg.capture = self.capture_specs[idx].clone();
+            for (i, it) in self.capture_items.iter().enumerate() {
+                it.set_checked(i == idx);
+            }
+        }
+        if let Some(out) = saved.output {
+            let spec = if out.is_empty() { None } else { Some(out) };
+            let idx = self.output_specs.iter().position(|s| *s == spec).unwrap_or(0);
+            self.cfg.output = self.output_specs[idx].clone();
+            for (i, it) in self.output_items.iter().enumerate() {
+                it.set_checked(i == idx);
+            }
+        }
+        if let Some(en) = saved.enabled {
+            self.enabled = en;
+            self.enabled_item.set_checked(en);
+        }
+    }
+
+    /// Persist the current settings so the next launch restores them.
+    fn save(&self) {
+        let Some(path) = config_path() else { return };
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let body = format!(
+            "profile={}\nloopback={}\ncapture={}\noutput={}\nenabled={}\n",
+            self.cfg.profile.label().to_lowercase(),
+            self.cfg.loopback,
+            self.cfg.capture.clone().unwrap_or_default(),
+            self.cfg.output.clone().unwrap_or_default(),
+            self.enabled,
+        );
+        let _ = std::fs::write(&path, body);
     }
 
     /// (Re)start or stop the engine to match current state, and reflect the
@@ -230,18 +284,21 @@ impl App {
             "enabled" => {
                 self.enabled = self.enabled_item.is_checked();
                 self.apply();
+                self.save();
             }
             "profile:movie" => {
                 self.cfg.profile = ProfileKind::Movie;
                 self.movie_item.set_checked(true);
                 self.music_item.set_checked(false);
                 self.apply();
+                self.save();
             }
             "profile:music" => {
                 self.cfg.profile = ProfileKind::Music;
                 self.movie_item.set_checked(false);
                 self.music_item.set_checked(true);
                 self.apply();
+                self.save();
             }
             other if other.starts_with("cap:") => {
                 if let Some(idx) = self.capture_items.iter().position(|it| it.id().0 == other) {
@@ -250,6 +307,7 @@ impl App {
                     }
                     self.cfg.capture = self.capture_specs[idx].clone();
                     self.apply();
+                    self.save();
                 }
             }
             other if other.starts_with("out:") => {
@@ -259,11 +317,59 @@ impl App {
                     }
                     self.cfg.output = self.output_specs[idx].clone();
                     self.apply();
+                    self.save();
                 }
             }
             _ => {}
         }
     }
+}
+
+/// Where the tray remembers its settings: %APPDATA%\TAN\config.txt on Windows,
+/// $XDG_CONFIG_HOME/TAN or ~/.config/TAN elsewhere.
+fn config_path() -> Option<PathBuf> {
+    let base = if cfg!(windows) {
+        std::env::var_os("APPDATA").map(PathBuf::from)
+    } else {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
+    }?;
+    Some(base.join("TAN").join("config.txt"))
+}
+
+#[derive(Default)]
+struct Saved {
+    profile: Option<String>,
+    capture: Option<String>,
+    output: Option<String>,
+    enabled: Option<bool>,
+}
+
+/// Load and parse the config file; absent or unreadable is fine (defaults).
+fn load_saved() -> Saved {
+    let Some(path) = config_path() else { return Saved::default() };
+    match std::fs::read_to_string(&path) {
+        Ok(text) => parse_saved(&text),
+        Err(_) => Saved::default(),
+    }
+}
+
+/// Parse the simple `key=value` config text.
+fn parse_saved(text: &str) -> Saved {
+    let mut s = Saved::default();
+    for line in text.lines() {
+        let Some((k, v)) = line.split_once('=') else { continue };
+        let v = v.trim().to_string();
+        match k.trim() {
+            "profile" => s.profile = Some(v),
+            "capture" => s.capture = Some(v),
+            "output" => s.output = Some(v),
+            "enabled" => s.enabled = Some(v == "true"),
+            _ => {}
+        }
+    }
+    s
 }
 
 /// The TAN badge icon, drawn in code from the same geometry as docs/icon.svg
@@ -369,7 +475,26 @@ fn icon_rgba() -> (Vec<u8>, u32) {
 
 #[cfg(test)]
 mod tests {
-    use super::icon_rgba;
+    use super::{icon_rgba, parse_saved};
+
+    #[test]
+    fn parses_config_and_empty_means_default_device() {
+        let s = parse_saved(
+            "profile=music\nloopback=true\ncapture=Sonar - Gaming\noutput=\nenabled=false\n",
+        );
+        assert_eq!(s.profile.as_deref(), Some("music"));
+        assert_eq!(s.capture.as_deref(), Some("Sonar - Gaming"));
+        assert_eq!(s.output.as_deref(), Some("")); // empty -> System default on restore
+        assert_eq!(s.enabled, Some(false));
+    }
+
+    #[test]
+    fn missing_keys_stay_none() {
+        let s = parse_saved("profile=movie\n# a comment line\ngarbage\n");
+        assert_eq!(s.profile.as_deref(), Some("movie"));
+        assert!(s.capture.is_none());
+        assert!(s.enabled.is_none());
+    }
 
     #[test]
     fn icon_is_shaped_not_a_square() {
