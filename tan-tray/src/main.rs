@@ -13,7 +13,11 @@
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
+use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
+
+const REPO: &str = "bknie1/True-Audio-Normalizer";
+const RELEASES_URL: &str = "https://github.com/bknie1/True-Audio-Normalizer/releases/latest";
 
 use tao::event::{Event, StartCause};
 use tao::event_loop::{ControlFlow, EventLoopBuilder};
@@ -42,8 +46,71 @@ fn main() {
             while let Ok(ev) = menu_rx.try_recv() {
                 app.on_menu(&ev.id, control_flow);
             }
+            app.poll_updates();
         }
     });
+}
+
+/// Fetch the latest release tag from the GitHub API without an HTTP crate:
+/// shell out to PowerShell on Windows, curl elsewhere. Returns e.g. "v0.0.3".
+fn fetch_latest_tag() -> Option<String> {
+    let api = format!("https://api.github.com/repos/{REPO}/releases/latest");
+    let output = if cfg!(windows) {
+        std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "(Invoke-RestMethod -Uri '{api}' -Headers @{{'User-Agent'='tan-tray'}}).tag_name"
+                ),
+            ])
+            .output()
+            .ok()?
+    } else {
+        std::process::Command::new("curl")
+            .args(["-fsSL", "-H", "User-Agent: tan-tray", &api])
+            .output()
+            .ok()?
+    };
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    extract_tag(&text)
+}
+
+/// Pull the tag out of either a bare string (PowerShell prints `.tag_name`
+/// directly) or a JSON body (curl prints the whole release object).
+fn extract_tag(text: &str) -> Option<String> {
+    if let Some(i) = text.find("\"tag_name\"") {
+        let rest = &text[i + "\"tag_name\"".len()..];
+        let start = rest.find('"')? + 1;
+        let end = rest[start..].find('"')? + start;
+        return Some(rest[start..end].trim().to_string());
+    }
+    let t = text.trim();
+    (!t.is_empty()).then(|| t.to_string())
+}
+
+/// True if release tag `latest` (e.g. "v0.0.3") is a newer semver than
+/// `current` (CARGO_PKG_VERSION, e.g. "0.0.2").
+fn is_newer(latest: &str, current: &str) -> bool {
+    fn parse(v: &str) -> (u32, u32, u32) {
+        let v = v.trim().trim_start_matches('v');
+        let mut it = v.split('.').map(|p| p.trim().parse::<u32>().unwrap_or(0));
+        (it.next().unwrap_or(0), it.next().unwrap_or(0), it.next().unwrap_or(0))
+    }
+    parse(latest) > parse(current)
+}
+
+/// Open a URL in the user's default browser (per-OS, no dependency).
+fn open_url(url: &str) {
+    #[cfg(target_os = "windows")]
+    let _ = std::process::Command::new("cmd").args(["/C", "start", "", url]).spawn();
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("open").arg(url).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let _ = std::process::Command::new("xdg-open").arg(url).spawn();
 }
 
 struct App {
@@ -63,6 +130,10 @@ struct App {
     capture_specs: Vec<Option<String>>,
     output_items: Vec<CheckMenuItem>,
     output_specs: Vec<Option<String>>,
+
+    update_item: MenuItem,
+    update_rx: Receiver<Option<String>>, // Some(tag) if a newer release exists
+    update_ready: bool,
 }
 
 impl App {
@@ -146,6 +217,7 @@ impl App {
         let export_item = MenuItem::with_id(MenuId::new("export"), "Export settings...", true, None);
         let import_item = MenuItem::with_id(MenuId::new("import"), "Import settings...", true, None);
         let copy_item = MenuItem::with_id(MenuId::new("copy"), "Copy diagnostics", true, None);
+        let update_item = MenuItem::with_id(MenuId::new("update"), "Check for updates", true, None);
         let quit_item = MenuItem::with_id(MenuId::new("quit"), "Quit", true, None);
 
         let settings_menu = Submenu::with_items(
@@ -165,9 +237,19 @@ impl App {
             &output_menu,
             &PredefinedMenuItem::separator(),
             &settings_menu,
+            &update_item,
             &quit_item,
         ])
         .expect("build menu");
+
+        // Kick off a background update check (no HTTP crate - shells out to
+        // the OS, so it adds no dependency and no C-compiler build).
+        let (update_tx, update_rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let newer = fetch_latest_tag()
+                .filter(|tag| is_newer(tag, env!("CARGO_PKG_VERSION")));
+            let _ = update_tx.send(newer);
+        });
 
         let tray = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
@@ -189,6 +271,9 @@ impl App {
             capture_specs,
             output_items,
             output_specs,
+            update_item,
+            update_rx,
+            update_ready: false,
         };
         app.restore_saved(); // reapply last session's choices before starting
         app.apply();
@@ -320,6 +405,18 @@ impl App {
         }
     }
 
+    /// Drain the background update-check result; relabel the menu item if a
+    /// newer release is available. Called each event-loop tick.
+    fn poll_updates(&mut self) {
+        while let Ok(msg) = self.update_rx.try_recv() {
+            if let Some(tag) = msg {
+                self.update_item.set_text(format!("Update available: {tag}"));
+                self.update_ready = true;
+                self.set_tooltip(&format!("TAN - update available: {tag}"));
+            }
+        }
+    }
+
     /// Assemble a diagnostics report and put it on the clipboard.
     fn copy_diagnostics(&mut self) {
         let report = format!(
@@ -357,6 +454,11 @@ impl App {
             }
             "import" => {
                 self.import_settings();
+            }
+            "update" => {
+                // Whether or not the background check has flagged one, the
+                // releases page is where a build is downloaded.
+                open_url(RELEASES_URL);
             }
             "enabled" => {
                 self.enabled = self.enabled_item.is_checked();
@@ -547,7 +649,28 @@ fn icon_rgba() -> (Vec<u8>, u32) {
 
 #[cfg(test)]
 mod tests {
-    use super::{icon_rgba, parse_saved};
+    use super::{extract_tag, icon_rgba, is_newer, parse_saved};
+
+    #[test]
+    fn version_comparison() {
+        assert!(is_newer("v0.0.3", "0.0.2"));
+        assert!(is_newer("0.1.0", "0.0.9"));
+        assert!(is_newer("v1.0.0", "0.9.9"));
+        assert!(!is_newer("v0.0.2", "0.0.2"));
+        assert!(!is_newer("v0.0.1", "0.0.2"));
+    }
+
+    #[test]
+    fn tag_extraction() {
+        // PowerShell prints the bare tag.
+        assert_eq!(extract_tag("v0.0.3\n").as_deref(), Some("v0.0.3"));
+        // curl prints JSON.
+        assert_eq!(
+            extract_tag(r#"{"url":"x","tag_name":"v0.0.5","name":"y"}"#).as_deref(),
+            Some("v0.0.5")
+        );
+        assert_eq!(extract_tag("   ").as_deref(), None);
+    }
 
     #[test]
     fn parses_config_and_empty_means_default_device() {

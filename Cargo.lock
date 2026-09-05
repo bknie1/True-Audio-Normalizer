@@ -2493,25 +2493,25 @@ dependencies = [
 
 [[package]]
 name = "tan-cli"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "tan-core",
 ]
 
 [[package]]
 name = "tan-core"
-version = "0.0.1"
+version = "0.0.2"
 
 [[package]]
 name = "tan-ffi"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "tan-core",
 ]
 
 [[package]]
 name = "tan-live"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "cpal",
  "tan-core",
@@ -2519,7 +2519,7 @@ dependencies = [
 
 [[package]]
 name = "tan-tray"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "arboard",
  "rfd",
