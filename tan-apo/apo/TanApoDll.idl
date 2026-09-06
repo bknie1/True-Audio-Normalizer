@@ -1,0 +1,35 @@
+//
+// TanApoDll.idl - COM library and coclass definitions for the TAN APO DLL.
+//
+// Derived from the Microsoft WDK SwapAPO sample (MIT license).
+//
+
+import "oaidl.idl";
+import "ocidl.idl";
+import "TanApoInterface.idl";
+
+//-------------------------------------------------------------------------
+// TanApoDlllib
+//
+[
+    uuid(A9213DBA-316A-44F2-867B-EB96908F7987),
+    version(1.0)
+]
+library TanApoDlllib
+{
+    importlib("stdole2.tlb");
+
+    // TAN APO - SFX
+    [
+        uuid(2A746E35-39E6-4627-B243-7E732E96387F)
+    ]
+    coclass TanApoSFX
+    {
+        interface IAudioProcessingObject;
+        interface IAudioProcessingObjectRT;
+        interface IAudioProcessingObjectConfiguration;
+        interface IMMNotificationClient;
+        interface IAudioSystemEffects;
+        [default] interface ITanApoSFX;
+    };
+}

@@ -1,0 +1,18 @@
+//
+// TanApoInterface.idl - interface definitions for the TAN APO.
+//
+// Derived from the Microsoft WDK SwapAPO sample (MIT license).
+//
+import "oaidl.idl";
+import "ocidl.idl";
+import "audioenginebaseapo.idl";
+
+// The TAN SFX APO interface.
+[
+    object,
+    uuid(DEBD06C8-2F87-49EC-B1BF-E0263C5221C1),
+    pointer_default(unique)
+]
+interface ITanApoSFX : IUnknown
+{
+};

@@ -1,0 +1,16 @@
+#if 0
+Derived from the Microsoft WDK SwapAPO sample (MIT license).
+#endif
+
+#include "resource.h"
+#include "winres.h"
+#include <ntverp.h>
+#define VER_FILETYPE                    VFT_DLL
+#define VER_FILESUBTYPE                 VFT_UNKNOWN
+#define VER_FILEDESCRIPTION_STR         "TAN - True Audio Normalizer APO"
+#define VER_INTERNALNAME_STR            "TanApo"
+#define VER_ORIGINALFILENAME_STR        "TanApo.Dll"
+#include <Common.ver>
+
+IDR_TANAPODLL           REGISTRY                "TanApoDll.rgs"
+IDR_TANAPOSFX           REGISTRY                "TanApoSFX.rgs"
