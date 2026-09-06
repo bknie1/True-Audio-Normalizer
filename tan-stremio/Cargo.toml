@@ -1,0 +1,8 @@
+[package]
+name = "tan-stremio"
+version = "0.0.5"
+edition = "2021"
+description = "Stremio addon: serves your own local video library with a TAN-normalized audio track alongside the original."
+
+[dependencies]
+tan-core = { path = "../tan-core" }
