@@ -1,0 +1,52 @@
+; tan-apo.inf - registers the TAN System Effect APO.
+;
+; SKELETON. Finalize against the WDK SwapAPO sample's INF, which shows the full
+; AudioProcessingObject-class registration and the FX property GUIDs. Two ways
+; to deploy the APO this INF registers:
+;   (A) Extension INF that attaches it to an existing endpoint (dev target:
+;       the Realtek output). Class = Extension; ExtensionId a fresh GUID;
+;       reference the base endpoint's hardware id. This is the Waves-on-Realtek
+;       model - base driver untouched, coexists with SteelSeries.
+;   (B) Attach to TAN's own virtual device once Phase 2 (SYSVAD) exists.
+;
+; Replace every {PLACEHOLDER-GUID} with a freshly generated GUID (New-Guid),
+; and keep them stable thereafter.
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = AudioProcessingObject
+ClassGuid   = {5989fce8-9cd0-467d-8a6a-5419e31529d4}
+Provider    = %ProviderName%
+CatalogFile = tan-apo.cat
+DriverVer   = ; set by stampinf at build
+
+[SourceDisksNames]
+1 = %DiskName%
+
+[SourceDisksFiles]
+tan-apo.dll = 1
+
+[DestinationDirs]
+DefaultDestDir = 13 ; DIRID_DRIVERSTORE (package-relative)
+
+; --- Register the APO COM server + its APO metadata -------------------------
+; The SwapAPO sample's INF is the reference for the exact AddReg entries under
+; HKCR\CLSID\{APO-CLSID} and the APO registration (name, copyright, major/minor,
+; APO flags, min/max input/output connections). Mirror those here with TAN's
+; CLSID = {PLACEHOLDER-APO-CLSID} and friendly name.
+
+[TanApo.CopyList]
+tan-apo.dll
+
+; --- FX association ---------------------------------------------------------
+; This is where the APO is attached to an endpoint's effect chain (SFX slot),
+; via PKEY_FX_* properties. In an Extension INF (deployment A) these AddReg
+; entries live under the extended endpoint's Device Parameters. Copy the exact
+; PKEY_FX_StreamEffectClsid / PKEY_FX_ModeEffectClsid / EndpointEffectClsid
+; structure from the SwapAPO sample and set the CLSID to TAN's.
+
+[Strings]
+ProviderName = "Brandon Knieriem"
+DiskName     = "TAN APO Installation Disk"
+; APO friendly name shown to Windows:
+TanApoName   = "TAN - True Audio Normalizer"
