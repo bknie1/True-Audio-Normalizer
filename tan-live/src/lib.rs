@@ -463,6 +463,23 @@ pub(crate) fn cpal_run(cfg: &EngineConfig) -> Result<RunningEngine, String> {
     let capture_name = capture_device.to_string();
     let output_name = playback_device.to_string();
 
+    // The most common way to end up with a feedback loop: loopback-capturing
+    // a device and also sending TAN's output back to that same device. That
+    // isn't a subtle misconfiguration to warn about after the fact - it's
+    // always wrong, so refuse to start rather than let it play out as
+    // doubled/looping audio. This also catches the out-of-the-box case where
+    // Input and Output are both left on "System default" and happen to
+    // resolve to the same device.
+    if cfg.loopback && capture_name == output_name {
+        return Err(format!(
+            "Input and Output are both \"{capture_name}\" - capturing a device \
+             and sending TAN's result back to that same device causes a \
+             feedback loop (you'd hear the original AND TAN's copy, looping). \
+             Pick a different Output - headphones, a second speaker set, or a \
+             virtual channel your mixer doesn't also send to this device."
+        ));
+    }
+
     // For loopback the capture device is a *render* (output) endpoint. cpal
     // turns an input stream on a render device into a loopback capture, but the
     // usable format is that device's render format - so ask for its OUTPUT
@@ -584,6 +601,18 @@ pub(crate) fn cpal_run(cfg: &EngineConfig) -> Result<RunningEngine, String> {
 #[cfg(test)]
 mod tests {
     use super::{FormatConverter, Ring};
+
+    #[test]
+    fn refuses_to_start_when_output_would_feed_back_into_capture() {
+        // Defaults: loopback on, capture and output both "System default" -
+        // the out-of-the-box configuration that used to silently create a
+        // feedback loop instead of refusing to start.
+        let cfg = super::EngineConfig::default();
+        match super::start(&cfg) {
+            Ok(_) => panic!("same device for capture and output must be refused"),
+            Err(err) => assert!(err.contains("feedback loop"), "unexpected error message: {err}"),
+        }
+    }
 
     #[test]
     fn converter_identity_passthrough() {
