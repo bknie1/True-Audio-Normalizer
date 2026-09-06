@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setting up TAN</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#b3552e">
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --ink: #1c1c1a;
+    --muted: #6b6a66;
+    --card: #ffffff;
+    --edge: #e3e1dc;
+    --accent: #b3552e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513;
+      --ink: #e8e6e1;
+      --muted: #98968f;
+      --card: #201f1c;
+      --edge: #34322d;
+      --accent: #e0764a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 0.25rem; letter-spacing: -0.02em; }
+  .tagline { color: var(--muted); margin: 0 0 2.5rem; }
+  h2 { font-size: 1.2rem; margin: 2.75rem 0 0.5rem; }
+  h3 { font-size: 1.02rem; margin: 1.75rem 0 0.35rem; }
+  p { margin: 0.75rem 0; }
+  a { color: var(--accent); }
+  ol, ul { margin: 0.75rem 0; padding-left: 1.4rem; }
+  li { margin: 0.4rem 0; }
+  code {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 5px;
+    padding: 0.1em 0.4em;
+    font-size: 0.9em;
+    font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+  }
+  pre {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    overflow-x: auto;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+  pre code { background: none; border: 0; padding: 0; }
+  .note {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin: 1.25rem 0;
+    font-size: 0.95rem;
+  }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps > li {
+    position: relative;
+    padding-left: 2.4rem;
+    margin: 1rem 0;
+  }
+  .steps > li::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0.05rem;
+    width: 1.7rem;
+    height: 1.7rem;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Setting up TAN</h1>
+  <p class="tagline">How to get TAN running on your computer, in plain
+  language. No audio-engineering background needed.</p>
+
+  <h2>What TAN is doing, in one sentence</h2>
+  <p>TAN keeps a hand on the volume knob for you: it quietly turns whispers up
+  and explosions down while leaving everything else alone. To do that live, it
+  has to sit somewhere between whatever is making the sound and your ears. The
+  rest of this page is just about putting it there.</p>
+
+  <h2>The no-install option</h2>
+  <p>If you only want to hear the difference, or run your own files or a
+  YouTube tab through it, you don't have to install anything. Open the
+  <a href="index.html">demo page</a> right in your browser. It does everything
+  on your own machine and uploads nothing. That's the easiest way to start.</p>
+  <p>The steps below are for the other case: fixing <em>all</em> the sound on
+  your computer, all the time.</p>
+
+  <h2>Installing the app (Windows)</h2>
+  <ol class="steps">
+    <li>Grab the installer from the
+      <a href="https://github.com/bknie1/True-Audio-Normalizer/releases/latest"
+      target="_blank" rel="noopener">releases page</a> and run it.</li>
+    <li>Windows may show a blue "Windows protected your PC" box, because the
+      app isn't code-signed yet. Click <strong>More info</strong>, then
+      <strong>Run anyway</strong>. (This goes away once TAN is signed.)</li>
+    <li>You now have a small system-tray app plus the command-line tools
+      <code>tan-cli</code> (for files) and <code>tan-live</code> (for live
+      audio).</li>
+  </ol>
+  <p>macOS and Linux builds are on the same page. They can process files today;
+  live system-wide audio on those platforms is still being built.</p>
+
+  <h2>Why live setup takes one extra step right now</h2>
+  <p>Here's the honest part. Right now TAN's live tool works by
+  <strong>listening to one audio device and playing the fixed sound out of a
+  different one</strong>. Your headset is a single device, so by itself there's
+  no "in between" for TAN to sit in. It needs a second device to hand the
+  cleaned-up audio to.</p>
+  <p>You don't need to buy anything for that second device. You almost
+  certainly already have software that can create one.</p>
+
+  <h2>Using TAN with SteelSeries Sonar (or any audio mixer)</h2>
+  <p>If you game, you may already run <strong>SteelSeries Sonar</strong> (part
+  of SteelSeries GG). Programs like Sonar, plus free tools like
+  <a href="https://vb-audio.com/Cable/" target="_blank"
+  rel="noopener">VB-Audio Cable</a> or Voicemeeter, all do one thing that
+  solves this: they create <strong>virtual audio devices</strong>.</p>
+  <p>A virtual audio device is a sound card that exists only in software.
+  Nothing is plugged into it, but Windows treats it like a real speaker or
+  headset. That gives TAN the extra device it needs, out of thin air.</p>
+
+  <h3>How the pieces line up</h3>
+  <ol class="steps">
+    <li>Your games, movies, and browser play their sound into the virtual
+      device. If you already use Sonar, that's your normal setup already, since
+      Sonar's virtual device is your default output.</li>
+    <li>TAN listens to that virtual device and evens out the loudness of
+      whatever is playing.</li>
+    <li>TAN plays the fixed result out to your real headset.</li>
+    <li>You listen on the headset. TAN is now in the middle, smoothing the
+      final mix on its way to your ears.</li>
+  </ol>
+  <p>In a terminal, that looks like:</p>
+  <pre><code>tan-live --list-devices
+tan-live --loopback --output "&lt;your real headset&gt;"</code></pre>
+  <p><code>--loopback</code> means "grab whatever the default output is already
+  playing" (the virtual device). <code>--output</code> is the real device you
+  actually listen on. Use the exact device name that
+  <code>--list-devices</code> prints.</p>
+
+  <h3>Do Sonar and TAN step on each other? No.</h3>
+  <p>They work at different points, so they get along. Sonar mixes your
+  separate game, chat, and microphone streams, runs its own EQ, and handles
+  your mic. TAN takes the finished mix Sonar hands out and simply levels its
+  loudness before it reaches you. You don't turn either one off. Your whole
+  Sonar setup stays exactly as it is; TAN just tidies the volume at the very
+  end.</p>
+
+  <div class="note">
+    <strong>One thing to watch: don't create a loop.</strong> The device TAN
+    plays <em>out</em> to must not be one the mixer is also feeding back in, or
+    the sound chases its own tail. The simple fixes: send TAN's output straight
+    to your headset while apps play into the virtual device, or use a mixer
+    that gives you a distinct second output (Sonar has a separate stream /
+    monitoring output; you can also add a second VB-Cable) and point TAN at
+    that.
+  </div>
+
+  <h2>Where this is all heading</h2>
+  <p>The two-device routing above is a workaround, and I know it's fiddly. It
+  exists only because TAN isn't yet built <em>into</em> the Windows sound
+  pipeline. The next big piece of work is exactly that: a system audio effect
+  that slots TAN directly onto your output, the same way Sonar and Waves attach
+  to a device.</p>
+  <p>When that ships, none of the routing on this page is needed. TAN will sit
+  on your headset alongside Sonar automatically, with nothing to wire up. Until
+  then, the virtual-device trick is the way to get TAN fixing everything you
+  play.</p>
+
+  <footer>
+    <a href="index.html">Back to the demos</a> ·
+    <a href="eli5.html">the no-jargon explanation</a> ·
+    <a href="https://github.com/bknie1/True-Audio-Normalizer">github.com/bknie1/True-Audio-Normalizer</a>
+  </footer>
+</main>
+</body>
+</html>

@@ -159,6 +159,62 @@ cargo build -p tan-ffi --release
 # -> target/release/tan.dll (Windows) / libtan.dylib (macOS) / libtan.so (Linux)
 ```
 
+## Tutorial: running TAN alongside SteelSeries Sonar (or any audio mixer)
+
+In plain language, because this is the question people actually hit first.
+
+**The situation.** Today's live tool (`tan-live`) works by *capturing* sound
+from one audio device and *playing* the fixed sound out of a second device. A
+single headset is only one device, so on its own TAN has nowhere to sit "in the
+middle" of your listening.
+
+**Where the gaming software comes in.** Programs like SteelSeries Sonar (part of
+SteelSeries GG), Voicemeeter, or VB-Audio Cable all do one thing that helps
+here: they create *virtual* audio devices. A virtual device is a sound card that
+exists only in software - nothing is plugged into it, but Windows treats it like
+a real output. That extra device is exactly the "second device" TAN needs, so
+you don't have to buy or plug in any hardware.
+
+**How they fit together.** You end up with a short chain:
+
+1. Your games, movies, and browser play their sound into the virtual device
+   (if you already use Sonar, that virtual device is your Windows default
+   output, so this part is already true).
+2. `tan-live --loopback` listens to that virtual device and normalizes whatever
+   is playing.
+3. TAN plays the normalized result out to your real headset.
+4. You listen to the headset, and TAN is now in the middle - leveling the final
+   mix on its way to your ears.
+
+**Why they don't fight.** Sonar and TAN work at different points in the chain.
+Sonar mixes your separate game / chat / mic streams, applies its own EQ, and
+handles your microphone; TAN only takes the finished mix Sonar produces and
+evens out its loudness before it reaches you. Neither one has to be turned off
+for the other to work, so you keep your Sonar setup exactly as it is.
+
+**One thing to watch: don't make a loop.** TAN's *output* device has to be
+something the mixer is not also feeding back into, or the sound will chase its
+own tail. The easy answers: point TAN's output at a genuinely separate physical
+device (your headset directly, while apps play into the virtual one), or use a
+mixer that gives you a distinct second output (Sonar's separate stream /
+monitoring output, or a second VB-Cable) and capture that.
+
+```
+tan-live --list-devices
+tan-live --loopback --output "<your real headset>"
+```
+
+`--loopback` grabs whatever your default output (the virtual device) is playing;
+`--output` names the real device you actually listen on.
+
+**The short-term nature of this.** All of the above is a workaround for the
+fact that TAN is not yet *inside* the Windows audio pipeline. The next major
+piece of work (see below, and [`tan-apo`](tan-apo/README.md)) is an Audio
+Processing Object that inserts TAN directly into the system's effect chain, the
+same way Sonar and Waves attach to a device. When that lands, none of this
+two-device routing is needed: TAN just sits on the endpoint alongside Sonar,
+and there is nothing to wire up.
+
 ## Roadmap
 
 1. Done - WAV codec, perceptual metering, baseline-anchored two-way AGC, look-ahead
