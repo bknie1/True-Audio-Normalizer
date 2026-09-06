@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TAN for Stremio</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#b3552e">
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --ink: #1c1c1a;
+    --muted: #6b6a66;
+    --card: #ffffff;
+    --edge: #e3e1dc;
+    --accent: #b3552e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513;
+      --ink: #e8e6e1;
+      --muted: #98968f;
+      --card: #201f1c;
+      --edge: #34322d;
+      --accent: #e0764a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 0.25rem; letter-spacing: -0.02em; }
+  .tagline { color: var(--muted); margin: 0 0 2.5rem; }
+  h2 { font-size: 1.2rem; margin: 2.75rem 0 0.5rem; }
+  h3 { font-size: 1.02rem; margin: 1.75rem 0 0.35rem; }
+  p { margin: 0.75rem 0; }
+  a { color: var(--accent); }
+  ol, ul { margin: 0.75rem 0; padding-left: 1.4rem; }
+  li { margin: 0.4rem 0; }
+  code {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 5px;
+    padding: 0.1em 0.4em;
+    font-size: 0.9em;
+    font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+  }
+  pre {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    overflow-x: auto;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+  pre code { background: none; border: 0; padding: 0; }
+  .note {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin: 1.25rem 0;
+    font-size: 0.95rem;
+  }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps > li {
+    position: relative;
+    padding-left: 2.4rem;
+    margin: 1rem 0;
+  }
+  .steps > li::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0.05rem;
+    width: 1.7rem;
+    height: 1.7rem;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TAN for Stremio</h1>
+  <p class="tagline">Adds a "TAN Normalized" stream for your own local video
+  folder, right in Stremio's stream picker.</p>
+
+  <h2>Why this works differently from the desktop app</h2>
+  <p>Stremio addons only ever get to <strong>offer a stream URL before
+  playback starts</strong> - they have no hook into the player's live audio,
+  so an addon can't process sound in real time the way the TAN desktop app
+  does. What it <em>can</em> do is pre-process your own files once and hand
+  Stremio an alternate stream to play, the same idea as the Jellyfin
+  integration.</p>
+  <p>If what you actually want is TAN live on whatever Stremio is currently
+  playing, that's the desktop app's job instead - see the
+  <a href="setup.html">main setup guide</a> and point it at whatever output
+  device Stremio plays through.</p>
+
+  <h2>What actually happens to your files</h2>
+  <p>On startup, <code>tan-stremio</code> scans a folder you give it for
+  video files. For anything not already processed, it extracts the audio
+  with <code>ffmpeg</code>, runs it through TAN, and muxes the result back
+  with the <strong>original video stream, copied verbatim</strong> (no
+  re-encode) into a cached copy. <strong>Your original file is never
+  modified.</strong> Once a file is cached, later runs leave it alone.</p>
+
+  <h2>Setup</h2>
+  <ol class="steps">
+    <li>Make sure <a href="https://ffmpeg.org/download.html" target="_blank" rel="noopener">ffmpeg</a>
+      is installed and on your PATH. <code>tan-stremio</code> shells out to
+      it for demuxing and remuxing video.</li>
+    <li>Get <code>tan-stremio</code>: build it from source, or grab the
+      binary from the
+      <a href="https://github.com/bknie1/True-Audio-Normalizer/releases/latest" target="_blank" rel="noopener">releases page</a>.
+      <pre><code>cargo run --release -p tan-stremio -- --library "D:\Movies"</code></pre>
+      <code>--library</code> is the folder to scan (recursively, once, at
+      startup - restart to pick up new files). See
+      <code>--help</code> for the profile, port, and output-folder options.</li>
+    <li>Wait for the console to finish normalizing anything not already
+      cached - a movie-length file can take a while, so this runs as a
+      batch up front rather than making you wait mid-playback.</li>
+    <li>In Stremio: open the addon search, paste the manifest URL it
+      printed (<code>http://127.0.0.1:5860/manifest.json</code> by
+      default), and install.</li>
+    <li>Your titles show up under <strong>"TAN Local Library."</strong>
+      Open one and pick the <strong>"TAN Normalized"</strong> stream.</li>
+  </ol>
+
+  <div class="note">
+    <strong>Known limits, on purpose:</strong> movies only (no
+    season/episode structure or music library yet); no HTTP Range support on
+    the served file, so seeking may be limited on some players; no live
+    filesystem watching - restart to rescan. None of these are silent gaps;
+    they're just not built yet.
+  </div>
+
+  <footer>
+    <a href="setup.html">Back to the setup guide</a> ·
+    <a href="index.html">the demos</a> ·
+    <a href="https://github.com/bknie1/True-Audio-Normalizer/tree/main/tan-stremio">addon source</a>
+  </footer>
+</main>
+</body>
+</html>

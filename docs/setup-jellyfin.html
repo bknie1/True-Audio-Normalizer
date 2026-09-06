@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TAN for Jellyfin</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#b3552e">
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --ink: #1c1c1a;
+    --muted: #6b6a66;
+    --card: #ffffff;
+    --edge: #e3e1dc;
+    --accent: #b3552e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513;
+      --ink: #e8e6e1;
+      --muted: #98968f;
+      --card: #201f1c;
+      --edge: #34322d;
+      --accent: #e0764a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 0.25rem; letter-spacing: -0.02em; }
+  .tagline { color: var(--muted); margin: 0 0 2.5rem; }
+  h2 { font-size: 1.2rem; margin: 2.75rem 0 0.5rem; }
+  h3 { font-size: 1.02rem; margin: 1.75rem 0 0.35rem; }
+  p { margin: 0.75rem 0; }
+  a { color: var(--accent); }
+  ol, ul { margin: 0.75rem 0; padding-left: 1.4rem; }
+  li { margin: 0.4rem 0; }
+  code {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 5px;
+    padding: 0.1em 0.4em;
+    font-size: 0.9em;
+    font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+  }
+  pre {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    overflow-x: auto;
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+  pre code { background: none; border: 0; padding: 0; }
+  .note {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin: 1.25rem 0;
+    font-size: 0.95rem;
+  }
+  .steps { counter-reset: step; list-style: none; padding-left: 0; }
+  .steps > li {
+    position: relative;
+    padding-left: 2.4rem;
+    margin: 1rem 0;
+  }
+  .steps > li::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0.05rem;
+    width: 1.7rem;
+    height: 1.7rem;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  footer { margin-top: 4rem; color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TAN for Jellyfin</h1>
+  <p class="tagline">Adds a "TAN Normalized" version of your library right
+  into Jellyfin's own Play Version picker, alongside the original.</p>
+
+  <h2>How it fits together</h2>
+  <p>This isn't a single install - it's two small pieces working together:</p>
+  <ul>
+    <li><strong>tan-server</strong> - a tiny local program that does the
+      actual audio processing. It doesn't know anything about Jellyfin.</li>
+    <li><strong>The Jellyfin plugin</strong> - a thin client that asks
+      tan-server to process your files, then tells Jellyfin about the
+      result. It does no audio processing itself.</li>
+  </ul>
+  <p>Splitting it this way means the DSP is written once, in Rust, and isn't
+  reimplemented in C# just for Jellyfin.</p>
+
+  <h2>What actually happens to your files</h2>
+  <p>A manual scheduled task walks your library, extracts each item's audio
+  with Jellyfin's own bundled ffmpeg, sends it to tan-server, and - for
+  video - muxes the normalized audio back with the <strong>original video
+  stream, copied verbatim</strong> (no re-encode) into a new file next to
+  the source. <strong>Your original file is never modified or replaced.</strong>
+  Once a normalized copy exists, later runs leave it alone; delete it to
+  force a redo.</p>
+
+  <h2>Setup</h2>
+  <ol class="steps">
+    <li>Run <strong>tan-server</strong> somewhere your Jellyfin server can
+      reach it - the same machine, by default:
+      <pre><code>cargo run --release -p tan-server</code></pre>
+      or grab the <code>tan-server</code> binary from the
+      <a href="https://github.com/bknie1/True-Audio-Normalizer/releases/latest" target="_blank" rel="noopener">releases page</a>
+      and run it directly. It listens on <code>http://127.0.0.1:5859</code>
+      and has no authentication, so only bind it elsewhere behind something
+      that provides some.</li>
+    <li>Build the plugin (there's no plugin repository yet, so this is a
+      manual install):
+      <pre><code>git clone https://github.com/bknie1/True-Audio-Normalizer
+cd True-Audio-Normalizer/jellyfin-plugin-tan
+dotnet build -c Release</code></pre>
+    </li>
+    <li>Copy the built <code>Jellyfin.Plugin.Tan.dll</code> into a new
+      folder under Jellyfin's plugins directory, e.g.
+      <code>&lt;jellyfin-data&gt;/plugins/Tan_1.0.0.0/</code>, then restart
+      Jellyfin.</li>
+    <li>In Jellyfin: <strong>Dashboard &rarr; Plugins &rarr; TAN</strong> -
+      set the tan-server URL (default is fine if it's on the same machine)
+      and pick a profile (movie, music, speech, night, universal, or
+      game).</li>
+    <li><strong>Dashboard &rarr; Scheduled Tasks &rarr; TAN &rarr;
+      "Normalize Audio with TAN"</strong> - run it. It's manual-run only on
+      purpose, since it touches every item in your library on a pass.</li>
+    <li>Play something that was processed. Look for <strong>"TAN
+      Normalized"</strong> in the client's Play Version (or audio track)
+      picker.</li>
+  </ol>
+
+  <div class="note">
+    <strong>Honest status:</strong> this plugin compiles clean against the
+    real Jellyfin SDK and every API it uses was confirmed by reflection
+    against the actual installed assembly, not written from memory - but it
+    hasn't yet been run inside a live Jellyfin server end to end. If
+    something doesn't line up on your setup,
+    <a href="https://github.com/bknie1/True-Audio-Normalizer/issues" target="_blank" rel="noopener">open an issue</a>.
+  </div>
+
+  <footer>
+    <a href="setup.html">Back to the setup guide</a> ·
+    <a href="index.html">the demos</a> ·
+    <a href="https://github.com/bknie1/True-Audio-Normalizer/tree/main/jellyfin-plugin-tan">plugin source</a>
+  </footer>
+</main>
+</body>
+</html>
