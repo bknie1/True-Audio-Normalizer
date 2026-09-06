@@ -12,6 +12,14 @@ asked directly. Not a commitment to dates - things move when they're ready.
   combination outright with an explanation, instead of letting it play out
   as doubled, looping audio. Zero tan-tray changes needed; its existing
   error-surfacing already covers this.
+- **tan-stremio.** A Stremio addon offering a "TAN Normalized" stream for a
+  local library, the same "extra Play Version" idea as
+  jellyfin-plugin-tan - scan a folder, normalize each file once via ffmpeg +
+  tan-core, serve the result back into Stremio's stream picker. Plain Rust
+  linking tan-core directly, no separate tan-server process needed. Compiles
+  clean with full test coverage of the addon logic itself; the actual
+  ffmpeg pipeline and a real Stremio client still need to be exercised
+  end to end on a machine that has both.
 
 ## Next few weeks
 
