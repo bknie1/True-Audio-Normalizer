@@ -52,13 +52,42 @@ the very first blocks. For a dev/test build this is fine (an occasional first-
 block glitch); before shipping, pre-size the limiter and audit the process path
 for the RT thread. Tracked, not solved.
 
-## Building it (once the WDK is installed)
+## Prerequisites (one-time, and all of these need local admin)
 
-Prereqs (see `scripts/`): VS 2022 + "Desktop development with C++" workload,
-the Windows 11 SDK, and the **WDK** (adds driver project templates + the WDK VS
-extension). Then:
+Do this on a machine where **you are a local administrator**. Driver work is
+admin all the way down: installing the SDK/WDK, enabling test-signing, trusting
+a dev cert, and `pnputil` all require elevation. A domain-managed/locked-down
+workstation where you are not an admin cannot do any of it.
 
-1. `cargo build -p tan-ffi --release` → `target/release/tan.lib`.
+1. **Visual Studio 2022** with the "Desktop development with C++" workload. If
+   only the compiler is present, add the SDK + ATL from an elevated shell:
+   ```
+   & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\setup.exe" modify `
+     --installPath "C:\Program Files\Microsoft Visual Studio\2022\Professional" `
+     --add Microsoft.VisualStudio.Component.Windows11SDK.26100 `
+     --add Microsoft.VisualStudio.Component.VC.ATL --quiet --norestart
+   ```
+2. **Windows 11 SDK (10.0.26100)** - installed by step 1; this is where
+   `signtool.exe`, `inf2cat`, and `stampinf` come from.
+3. **WDK for Windows 11, 24H2 (10.0.26100)** plus its **Visual Studio
+   extension** (`.vsix`) - from Microsoft's "Download the WDK" page. The
+   extension adds the driver project templates and the SwapAPO sample. The WDK
+   version must match the SDK version.
+4. **MSVC Rust target** so `tan.lib` links into an MSVC C++ DLL (the default
+   toolchain here is GNU, whose `tan.lib` will not link cleanly into MSVC):
+   ```
+   rustup target add x86_64-pc-windows-msvc
+   ```
+5. **Test-signing on:** `bcdedit /set testsigning on`, then reboot. (Distribution
+   later needs a real EV cert instead; test-signing is dev-only.)
+
+Verify before building: `where signtool` and `where inf2cat` resolve, and
+`Program Files (x86)\Windows Kits\10\Include\10.0.26100.0` exists.
+
+## Building it
+
+1. `cargo build -p tan-ffi --release --target x86_64-pc-windows-msvc`
+   → `target/x86_64-pc-windows-msvc/release/tan.lib` (MSVC-compatible).
 2. Build the APO DLL (a WDK "System Audio Processing Object" project) linking
    `tan.lib`. The fastest route is to start from the **WDK SwapAPO sample**
    (github.com/microsoft/Windows-driver-samples → `audio/sysvad/APO` /
