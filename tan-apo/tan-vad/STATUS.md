@@ -24,22 +24,23 @@ signature (~$300/yr; Azure Trusted/Artifact Signing at ~$10/mo explicitly does
 NOT sign drivers). So tan-vad is parked as the eventual first-party premium
 package, not the path to using TAN now.
 
-## PROVEN path: user-mode tan-live + an already-signed virtual device ($0, Secure Boot ON)
+## WORKING path (done): user-mode tan-live + VB-CABLE ($0, Secure Boot ON)
 
-Verified on this machine (2026-09-07): `tan-live` (built here, release) opened a
-SteelSeries Sonar virtual endpoint via WASAPI loopback, ran the TAN Movie DSP,
-and streamed the processed result to a real output at 48 kHz / 2 ch / ~200 ms,
-with no errors. This is the whole "process + forward to my real I/O" experience,
-no kernel driver, no Secure Boot change, no cost - because the virtual device is
-already Microsoft-signed by someone else.
+Installed and verified end-to-end on this machine (2026-09-07):
+- **VB-CABLE** (free, Microsoft-WHCP-signed) installed - "CABLE Input/Output"
+  render+capture endpoints present and OK, Secure Boot left ON.
+- `tan-live` (built here, release) runs the full chain:
+  `CABLE Input (loopback) -> TAN [Movie] -> Headphones (Arctis), 48 kHz/2 ch/~200 ms`
+  with no errors.
 
-To finish the "select TAN and hear it" UX, one user decision remains:
-- **A (cleanest):** install the free, already-signed **VB-CABLE**; apps play to
-  "CABLE Input"; `tan-live --loopback-from "CABLE Output" --output "<real>"`.
-- **B (zero install):** dedicate a spare Sonar channel as TAN's input, set that
-  channel's own output to none, and loopback-capture it with tan-live.
-The enable/disable filter toggle is start/stop of tan-live, or a bypass flag in
-the tan-live engine (that engine is maintained on the other machine).
+**How to use it:** set any app's playback device to **"CABLE Input"**, then run
+`scripts\tan-forward.ps1` (captures CABLE Output -> TAN DSP -> your Arctis).
+Enable/disable filtering = start/stop that script (a true in-engine raw-passthrough
+toggle is a small tan-live change, on the other machine). `-Profile` picks the
+sound (universal|movie|music|speech|night|game).
+
+This is the recommended way to run TAN. No kernel driver, no Secure Boot change,
+no signing cost - the virtual device is already Microsoft-signed.
 
 ## Parked: Partner Center attestation signing (only if distributing tan-vad)
 
