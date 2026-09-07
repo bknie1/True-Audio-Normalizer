@@ -16,7 +16,32 @@ Snapshot of the TAN virtual audio device work as of 2026-09-07.
   Cert` exists in LocalMachine\My and is trusted in Root + TrustedPublisher,
   and `TanVad.sys` / `tanvad.cat` are signed with it.
 
-## Chosen route: Partner Center attestation signing (Secure Boot stays ON)
+## Reality check: the kernel driver is the wrong vehicle for daily use
+
+Installing our own kernel driver on a normal machine requires EITHER disabling
+Secure Boot (a security downgrade, not a reasonable ask) OR a Partner Center EV
+signature (~$300/yr; Azure Trusted/Artifact Signing at ~$10/mo explicitly does
+NOT sign drivers). So tan-vad is parked as the eventual first-party premium
+package, not the path to using TAN now.
+
+## PROVEN path: user-mode tan-live + an already-signed virtual device ($0, Secure Boot ON)
+
+Verified on this machine (2026-09-07): `tan-live` (built here, release) opened a
+SteelSeries Sonar virtual endpoint via WASAPI loopback, ran the TAN Movie DSP,
+and streamed the processed result to a real output at 48 kHz / 2 ch / ~200 ms,
+with no errors. This is the whole "process + forward to my real I/O" experience,
+no kernel driver, no Secure Boot change, no cost - because the virtual device is
+already Microsoft-signed by someone else.
+
+To finish the "select TAN and hear it" UX, one user decision remains:
+- **A (cleanest):** install the free, already-signed **VB-CABLE**; apps play to
+  "CABLE Input"; `tan-live --loopback-from "CABLE Output" --output "<real>"`.
+- **B (zero install):** dedicate a spare Sonar channel as TAN's input, set that
+  channel's own output to none, and loopback-capture it with tan-live.
+The enable/disable filter toggle is start/stop of tan-live, or a bypass flag in
+the tan-live engine (that engine is maintained on the other machine).
+
+## Parked: Partner Center attestation signing (only if distributing tan-vad)
 
 Decision (2026-09-07): keep Secure Boot on and get the driver Microsoft-signed
 via Partner Center attestation, so it installs on this (and any) machine with no
