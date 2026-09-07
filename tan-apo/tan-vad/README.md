@@ -7,10 +7,11 @@ captures it, runs TAN's leveling (with an on/off bypass for instant A/B), and
 renders the result to your chosen physical output (Arctis, Sonar, speakers).
 
 It is a fork of the WDK **SimpleAudioSample** virtual-audio WDM driver
-(Windows-driver-samples/audio/simpleaudiosample, MIT). Only the display strings
-are rebranded so the device shows as **TAN** in the Windows playback list; the
-internal binary/service/hardware-id (`SimpleAudioSample` / `Root\SimpleAudioSample`)
-are unchanged for now — a full identifier rename is a follow-up.
+(Windows-driver-samples/audio/simpleaudiosample, MIT). The deployment identity
+is renamed to **TanVad** — binary `TanVad.sys`, service `TanVad`, hardware id
+`Root\TanVad`, catalog `TanVad.cat` — and the display strings show the device
+as **TAN** in the Windows playback list. Internal C++ identifiers still carry
+the `SimpleAudioSample` name; renaming those is cosmetic and deferred.
 
 ## Why a virtual device (not the APO)
 
@@ -30,9 +31,9 @@ MSBuild fails to load `x86\InfVerif.dll`):
     tan-vad\SimpleAudioSample.sln -p:Configuration=Release -p:Platform=x64 -m
 ```
 
-Output package (`x64\Release\package\`): `SimpleAudioSample.sys`, a signed
-`simpleaudiosample.cat`, and `SimpleAudioSample.inf` (DeviceDesc "TAN (True
-Audio Normalizer)", speaker friendly name "TAN").
+Output package (`x64\Release\package\`): `TanVad.sys`, a signed `tanvad.cat`,
+and `TanVad.inf` (DeviceDesc "TAN (True Audio Normalizer)", speaker friendly
+name "TAN", hardware id `Root\TanVad`).
 
 ## Install (dev)
 

@@ -9,10 +9,10 @@ $ErrorActionPreference = 'Continue'
 $devcon = 'C:\Program Files (x86)\Windows Kits\10\Tools\10.0.26100.0\x64\devcon.exe'
 
 # Remove the device node.
-& $devcon remove "ROOT\SimpleAudioSample" 2>$null | Out-Null
+& $devcon remove "ROOT\TanVad" 2>$null | Out-Null
 
 # Remove the driver package from the store (find the oem*.inf that is ours).
-$oem = pnputil /enum-drivers | Select-String -Context 0,4 'SimpleAudioSample.inf' |
+$oem = pnputil /enum-drivers | Select-String -Context 0,4 'TanVad.inf' |
     ForEach-Object { $_.Context.PostContext } | Select-String 'Published Name' |
     ForEach-Object { ($_ -split ':')[1].Trim() }
 foreach ($inf in ($oem | Sort-Object -Unique)) {

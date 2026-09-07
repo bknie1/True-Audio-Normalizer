@@ -32,9 +32,9 @@ function Require-Admin {
 }
 Require-Admin
 
-$sys = Join-Path $PackageDir 'SimpleAudioSample.sys'
-$cat = Join-Path $PackageDir 'simpleaudiosample.cat'
-$inf = Join-Path $PackageDir 'SimpleAudioSample.inf'
+$sys = Join-Path $PackageDir 'TanVad.sys'
+$cat = Join-Path $PackageDir 'tanvad.cat'
+$inf = Join-Path $PackageDir 'TanVad.inf'
 foreach ($f in $sys,$cat,$inf) { if (-not (Test-Path $f)) { throw "Missing $f - build tan-vad first (msbuild SimpleAudioSample.sln, Release x64, 64-bit MSBuild)." } }
 
 $kitBin = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64'
@@ -64,6 +64,14 @@ Write-Host 'Signing .sys and .cat...'
 # 3. Test-signing must be on for a self-signed KMDF package.
 $ts = (bcdedit /enum '{current}' | Select-String 'testsigning\s+Yes')
 if (-not $ts) {
+    # Secure Boot blocks enabling test-signing; that must be turned off in UEFI first.
+    $sb = $false
+    try { $sb = Confirm-SecureBootUEFI } catch {}
+    if ($sb) {
+        Write-Host 'Secure Boot is ON, which blocks test-signing. Disable Secure Boot in UEFI/BIOS, then re-run this script.' -ForegroundColor Red
+        Write-Host 'The cert is created and the driver is signed; only test-signing + the device install remain.' -ForegroundColor Yellow
+        return
+    }
     bcdedit /set testsigning on | Out-Null
     Write-Host 'Enabled test-signing. REBOOT now, then re-run this script to finish the install.' -ForegroundColor Yellow
     return
@@ -71,8 +79,8 @@ if (-not $ts) {
 
 # 4. Create the root virtual device (idempotent: remove any prior instance first).
 Write-Host 'Installing the TAN virtual audio device...'
-& $devcon remove "ROOT\SimpleAudioSample" 2>$null | Out-Null
-& $devcon install "$inf" "Root\SimpleAudioSample"
+& $devcon remove "ROOT\TanVad" 2>$null | Out-Null
+& $devcon install "$inf" "Root\TanVad"
 Write-Host 'Done. "TAN" should now appear in the Windows playback device list.' -ForegroundColor Green
 Write-Host 'Next: run tan-live to forward it, e.g.:' -ForegroundColor DarkGray
 Write-Host '  tan-live --loopback-from "TAN" --output "<your real output>"' -ForegroundColor DarkGray

@@ -179,16 +179,16 @@
     </DriverSign>
   </ItemDefinitionGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <TargetName>SimpleAudioSample</TargetName>
+    <TargetName>TanVad</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
-    <TargetName>SimpleAudioSample</TargetName>
+    <TargetName>TanVad</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <TargetName>SimpleAudioSample</TargetName>
+    <TargetName>TanVad</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
-    <TargetName>SimpleAudioSample</TargetName>
+    <TargetName>TanVad</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Link>
@@ -318,7 +318,7 @@
     <ClCompile Include="minwavert.cpp" />
     <ClCompile Include="minwavertstream.cpp" />
     <ClCompile Include="newdelete.cpp" />
-    <ResourceCompile Include="SimpleAudioSample.rc" />
+    <ResourceCompile Include="TanVad.rc" />
   </ItemGroup>
   <ItemGroup>
     <Inf Exclude="@(Inx)" Include="*.inx" />
