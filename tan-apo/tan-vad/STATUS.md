@@ -16,20 +16,33 @@ Snapshot of the TAN virtual audio device work as of 2026-09-07.
   Cert` exists in LocalMachine\My and is trusted in Root + TrustedPublisher,
   and `TanVad.sys` / `tanvad.cat` are signed with it.
 
-## BLOCKED — needs you (firmware) or a real cert
+## Chosen route: Partner Center attestation signing (Secure Boot stays ON)
 
-**Secure Boot is ON** on this machine (`UEFISecureBootEnabled=1`). Windows
-refuses to enable test-signing while Secure Boot is on, and a self-signed
-kernel driver cannot load without test-signing. This is a firmware setting I
-cannot change. Two ways forward:
+Decision (2026-09-07): keep Secure Boot on and get the driver Microsoft-signed
+via Partner Center attestation, so it installs on this (and any) machine with no
+test-signing and no firmware change.
 
-1. **Dev route:** disable Secure Boot in UEFI/BIOS, then run
-   `scripts\tan-vad-install.ps1` elevated. It will enable test-signing and tell
-   you to reboot; after reboot, run it once more and it creates the "TAN"
-   device with devcon. (Cert + signatures are already in place.)
-2. **Shipping route:** get the driver signed via Microsoft Partner Center
-   (attestation/WHQL). Then no Secure Boot change or test-signing is needed.
-   Requires the hardware-dev account, so it is your call.
+Prepared here (turn-key):
+- `scripts\package-for-attestation.ps1` builds `dist\TanVad.cab` (the driver
+  package under a `TanVad\` folder) - already built and verified.
+- `scripts\sign-attestation-cab.ps1 -Thumbprint <EV cert>` signs that cab with
+  your EV code-signing cert (prompts for the token PIN - only you can enter it).
+
+Needs you (identity/account-bound, cannot be automated):
+1. A **Microsoft Partner Center Hardware** account, established with an **EV
+   code-signing certificate** (hardware token).
+2. Sign the cab: `sign-attestation-cab.ps1 -Thumbprint <your EV cert thumbprint>`.
+3. Upload the signed `dist\TanVad.cab` at
+   https://partner.microsoft.com/dashboard/hardware -> new hardware submission
+   -> choose **attestation**, select the target OS versions.
+4. Download the MS-signed package Partner Center returns.
+5. Install it: `pnputil /add-driver <signed>\TanVad.inf /install` (or devcon
+   install with `Root\TanVad`), then `tan-vad-verify.ps1`. No test-signing, no
+   reboot-to-enable-testsigning needed.
+
+The earlier dev route (disable Secure Boot + test-signing) is still available
+via `tan-vad-install.ps1` if you ever want a quick local test; the dev cert and
+signed .sys/.cat from that path remain staged.
 
 ## Remaining after install (the other machine)
 
