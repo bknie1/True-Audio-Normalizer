@@ -1,0 +1,4 @@
+dist/
+TanControl.exe
+*.obj
+*.pdb
