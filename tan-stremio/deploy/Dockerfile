@@ -34,6 +34,8 @@ COPY tan-stremio/deploy/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 5870
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:5870/healthz || exit 1
 # Config via env (see .env.example): TAN_UPSTREAM (required), TAN_SECRET,
 # TAN_PROFILE. The proxy binds 0.0.0.0 and serves HLS; a fronting reverse proxy
 # terminates TLS and sets X-Forwarded-Proto so URLs come out https.

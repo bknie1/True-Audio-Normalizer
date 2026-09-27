@@ -237,6 +237,11 @@ fn handle(stream: &TcpStream, cfg: &Config) -> io::Result<()> {
         return plain(&mut w, 404, "not found");
     }
 
+    // Unauthenticated health probe (for container/orchestrator checks).
+    if req.path == "/healthz" {
+        return plain(&mut w, 200, "ok");
+    }
+
     // Strip the access-secret path prefix if configured.
     let path = match &cfg.secret {
         Some(secret) => {
