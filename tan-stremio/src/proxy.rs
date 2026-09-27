@@ -28,10 +28,13 @@ struct Config {
     profile: String,
     ffmpeg: String,
     self_exe: String,
-    /// Directory containing `tan_ladspa.so`, if found. When set, the movie
-    /// profile transcodes in a single ffmpeg pass via the LADSPA filter
-    /// (one source read) instead of the two-read pcm-filter pipe.
+    /// Directory containing `tan_ladspa.so`, if found. When set, transcodes in
+    /// a single ffmpeg pass via the LADSPA filter (one source read) instead of
+    /// the two-read pcm-filter pipe.
     ladspa_dir: Option<String>,
+    /// Cap on TAN variants offered per title, so a debrid addon's long stream
+    /// list doesn't flood Stremio with duplicates.
+    max_streams: usize,
 }
 
 pub fn run(args: &[String]) -> ! {
@@ -66,6 +69,7 @@ pub fn run(args: &[String]) -> ! {
         ffmpeg: flag(args, "--ffmpeg").unwrap_or_else(|| "ffmpeg".to_string()),
         self_exe,
         ladspa_dir,
+        max_streams: flag(args, "--max-streams").and_then(|s| s.parse().ok()).filter(|&n| n > 0).unwrap_or(8),
     };
     if crate::profile_by_name(&cfg.profile).is_none() {
         eprintln!("tan-stremio proxy: unknown profile '{}'", cfg.profile);
@@ -231,10 +235,13 @@ fn streams_for(cfg: &Config, ctype: &str, id: &str) -> String {
         return r#"{"streams":[]}"#.to_string();
     }
     let mut out: Vec<String> = Vec::new();
-    for base in &cfg.upstreams {
+    'outer: for base in &cfg.upstreams {
         let url = format!("{base}/stream/{ctype}/{}.json", url_encode(id));
         let Some(body) = http_get(&url) else { continue };
         for s in parse_streams(&body) {
+            if out.len() >= cfg.max_streams {
+                break 'outer;
+            }
             // Only wrap streams that resolve to a direct URL; skip torrents.
             let Some(src) = s.url else { continue };
             if !(src.starts_with("http://") || src.starts_with("https://")) {
