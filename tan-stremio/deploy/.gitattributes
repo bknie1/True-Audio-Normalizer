@@ -1,0 +1,6 @@
+# These are consumed on Linux (Docker); keep LF regardless of host.
+entrypoint.sh text eol=lf
+Dockerfile text eol=lf
+Caddyfile text eol=lf
+*.yml text eol=lf
+*.example text eol=lf
