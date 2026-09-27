@@ -6,7 +6,8 @@
 
 extern "C" {
 
-// Opaque handle to a live Normalizer. profile_id: 0 = movie, 1 = music.
+// Opaque handle to a live Normalizer. profile_id: 0 = movie, 1 = music,
+// 2 = universal, 3 = speech, 4 = night, 5 = game (see tan-ffi profile_from_id).
 typedef struct TanNormalizer TanNormalizer;
 
 TanNormalizer* tan_normalizer_new(uint32_t sample_rate, uint32_t channels, uint32_t profile_id);
