@@ -2,7 +2,7 @@
 name = "tan-stremio"
 version = "0.0.6"
 edition = "2021"
-description = "Stremio addon: serves your own local video library with a TAN-normalized audio track alongside the original."
+description = "Stremio addon: a real-time TAN-normalized variant of your debrid streams (proxy mode), or your own local library pre-normalized (default mode)."
 
 [dependencies]
 tan-core = { path = "../tan-core" }

@@ -23,6 +23,9 @@ use std::process::Command;
 use std::sync::Arc;
 use tan_core::{normalize_offline, wav, Profile};
 
+mod pcm_filter;
+mod proxy;
+
 struct Config {
     port: u16,
     bind: String,
@@ -34,6 +37,16 @@ struct Config {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
+
+    // Subcommands. `pcm-filter` is the internal streaming DSP stage the proxy
+    // pipes ffmpeg through; `proxy` is the real-time addon that wraps an
+    // upstream addon's direct-URL streams with a TAN-normalized variant.
+    match args.first().map(String::as_str) {
+        Some("pcm-filter") => pcm_filter::run(&args[1..]),
+        Some("proxy") => proxy::run(&args[1..]),
+        _ => {}
+    }
+
     if args.iter().any(|a| a == "--help" || a == "-h") {
         print_usage();
         return;

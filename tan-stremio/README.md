@@ -1,8 +1,54 @@
 # tan-stremio
 
-TAN as a [Stremio](https://www.stremio.com/) addon: serves your own local
-video library back into Stremio's stream picker with a TAN-normalized audio
-track alongside the original.
+TAN as a [Stremio](https://www.stremio.com/) addon. Two modes:
+
+- **`proxy`** (streamed content) - wraps an upstream stream addon (your
+  debrid-configured Torrentio/Comet/etc.) and offers a **real-time
+  TAN-normalized variant** of each direct-URL stream. Pick the "TAN" version of
+  a movie and its audio is leveled live. This is the one to use for the movies
+  you actually stream. See [Real-time proxy](#real-time-proxy-streamed-content).
+- **default** (local library) - pre-normalizes **your own local video files**
+  and serves each as a "TAN Normalized" stream. See
+  [Local library mode](#local-library-mode).
+
+## Real-time proxy (streamed content)
+
+A pure Stremio addon can't touch the player's audio pipeline - it only gets to
+*offer a stream URL*. The proxy works around that by making the URL it offers
+point back at itself: when the player opens the "TAN" stream, a local ffmpeg
+pipeline pulls the original stream, runs its audio through TAN in real time
+(the `pcm-filter` stage), copies the video untouched, and remuxes to a live
+MPEG-TS stream.
+
+```
+tan-stremio proxy --upstream "https://torrentio.strem.fun/<your-config>/manifest.json"
+```
+
+Then paste `http://127.0.0.1:5870/manifest.json` into Stremio's addon search
+bar. Open any movie: alongside your normal streams you'll see **"TAN movie"**
+entries - pick one to watch it normalized.
+
+- `--upstream <url>` - **required, repeatable.** The install URL of a stream
+  addon whose streams resolve to **direct HTTP URLs** - i.e. one configured
+  with a **debrid service** (Real-Debrid/AllDebrid/Premiumize). Raw-torrent
+  streams (`infoHash`, no URL) have nothing to pull, so they're skipped.
+- `--profile <name>` - `movie` (default), `universal`, `music`, `speech`,
+  `night`, `game`.
+- `--port` / `--bind` - default `5870` / `127.0.0.1`. `--ffmpeg <path>` if
+  ffmpeg isn't on PATH. Needs `curl` (in-box on Windows 10+) to query upstream.
+
+**Verified:** end-to-end on this machine - upstream wrap, live transcode, and
+TAN leveling (a quiet passage came up, a loud one came down) through a real
+ffmpeg pipeline, streamed to an HTTP client. Not yet exercised inside the
+Stremio UI against a live debrid account.
+
+**Limits (v1, deliberate):** only direct-URL (debrid) streams are wrapped; the
+source is read twice (once for video, once for audio - ~2x bandwidth);
+surround is downmixed to stereo; and the live stream **can't seek**. A
+single-read path (a stereo TAN LADSPA filter for ffmpeg) and seek support are
+the obvious next steps.
+
+## Local library mode
 
 ## Why this shape, not live audio processing
 
