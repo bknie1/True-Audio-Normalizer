@@ -42,6 +42,10 @@ struct Config {
     /// Offer a seekable HLS playlist (browser/ExoPlayer-friendly) instead of a
     /// progressive MPEG-TS stream. Requires the LADSPA plugin (single-pass).
     hls: bool,
+    /// Optional path-prefix secret. When set, everything is served under
+    /// `/<secret>/...` so a public deployment isn't open to anyone who guesses
+    /// the host. The manifest URL to install becomes `/<secret>/manifest.json`.
+    secret: Option<String>,
 }
 
 pub fn run(args: &[String]) -> ! {
@@ -78,6 +82,7 @@ pub fn run(args: &[String]) -> ! {
         ladspa_dir,
         max_streams: flag(args, "--max-streams").and_then(|s| s.parse().ok()).filter(|&n| n > 0).unwrap_or(8),
         hls: args.iter().any(|a| a == "--hls"),
+        secret: flag(args, "--secret").filter(|s| !s.is_empty()),
     };
     if crate::profile_by_name(&cfg.profile).is_none() {
         eprintln!("tan-stremio proxy: unknown profile '{}'", cfg.profile);
@@ -92,8 +97,12 @@ pub fn run(args: &[String]) -> ! {
             std::process::exit(1);
         }
     };
+    let install_path = cfg.secret.as_ref().map(|s| format!("/{s}/manifest.json")).unwrap_or_else(|| "/manifest.json".to_string());
     println!("TAN Stremio proxy addon listening on http://{addr}");
-    println!("Install in Stremio with manifest URL: http://{addr}/manifest.json");
+    println!("Install in Stremio with manifest URL: http://{addr}{install_path}");
+    if cfg.secret.is_some() {
+        println!("  (behind your HTTPS domain that becomes https://<domain>{install_path})");
+    }
     println!("Wrapping upstream addon(s):");
     for u in &cfg.upstreams {
         println!("  {u}");
@@ -153,11 +162,13 @@ fn normalize_upstream(u: &str) -> String {
 struct Req {
     method: String,
     path: String,
-    /// The Host header (authority, e.g. "192.168.1.50:5870"). Used so the
-    /// stream/segment URLs we hand back use the same address the client reached
-    /// us on - essential when a separate device (Android TV) talks to a proxy
-    /// running on a LAN PC, not 127.0.0.1.
+    /// The Host header (authority, e.g. "tan.example.com" or "192.168.1.50:5870").
+    /// URLs we hand back reflect it so they're reachable from the device that
+    /// connected (a public domain behind a proxy, a LAN IP, or localhost).
     host: Option<String>,
+    /// X-Forwarded-Proto from a TLS-terminating reverse proxy (Caddy/nginx), so
+    /// generated URLs use https when we're fronted by one.
+    fwd_proto: Option<String>,
 }
 
 fn read_req<R: BufRead>(r: &mut R) -> io::Result<Req> {
@@ -169,17 +180,20 @@ fn read_req<R: BufRead>(r: &mut R) -> io::Result<Req> {
     let method = parts.next().unwrap_or("").to_string();
     let path = parts.next().unwrap_or("/").to_string();
     let mut host = None;
+    let mut fwd_proto = None;
     loop {
         let mut h = String::new();
         if r.read_line(&mut h)? == 0 || h.trim_end().is_empty() {
             break;
         }
         let line = h.trim_end();
-        if let Some(v) = line.get(..5).filter(|p| p.eq_ignore_ascii_case("host:")) .map(|_| &line[5..]) {
+        if let Some(v) = line.get(..5).filter(|p| p.eq_ignore_ascii_case("host:")).map(|_| &line[5..]) {
             host = Some(v.trim().to_string());
+        } else if let Some(v) = line.get(..18).filter(|p| p.eq_ignore_ascii_case("x-forwarded-proto:")).map(|_| &line[18..]) {
+            fwd_proto = Some(v.trim().to_string());
         }
     }
-    Ok(Req { method, path, host })
+    Ok(Req { method, path, host, fwd_proto })
 }
 
 fn cors_json<W: Write>(w: &mut W, body: &str) -> io::Result<()> {
@@ -223,7 +237,22 @@ fn handle(stream: &TcpStream, cfg: &Config) -> io::Result<()> {
         return plain(&mut w, 404, "not found");
     }
 
-    let path = req.path.as_str();
+    // Strip the access-secret path prefix if configured.
+    let path = match &cfg.secret {
+        Some(secret) => {
+            let pfx = format!("/{secret}");
+            if req.path == pfx {
+                "/"
+            } else if let Some(rest) = req.path.strip_prefix(&pfx).filter(|r| r.starts_with('/')) {
+                rest
+            } else {
+                return plain(&mut w, 404, "not found");
+            }
+        }
+        None => req.path.as_str(),
+    };
+    let scheme = req.fwd_proto.as_deref().unwrap_or("http");
+
     if path == "/" || path == "/manifest.json" {
         return cors_json(&mut w, &manifest_json());
     }
@@ -232,7 +261,7 @@ fn handle(stream: &TcpStream, cfg: &Config) -> io::Result<()> {
         let mut it = rest.splitn(2, '/');
         let ctype = it.next().unwrap_or("");
         let id = percent_decode(it.next().unwrap_or(""));
-        return cors_json(&mut w, &streams_for(cfg, ctype, &id, req.host.as_deref()));
+        return cors_json(&mut w, &streams_for(cfg, ctype, &id, req.host.as_deref(), scheme));
     }
     // /p/<b64src>/<profile>/<leaf>
     //   tan.ts     -> progressive transcode (no seek)
@@ -270,18 +299,20 @@ fn manifest_json() -> String {
     )
 }
 
-fn streams_for(cfg: &Config, ctype: &str, id: &str, host: Option<&str>) -> String {
+fn streams_for(cfg: &Config, ctype: &str, id: &str, host: Option<&str>, scheme: &str) -> String {
     if ctype != "movie" && ctype != "series" {
         return r#"{"streams":[]}"#.to_string();
     }
-    // Reflect the Host the client used so URLs are reachable from that device
-    // (e.g. the PC's LAN IP for an Android TV), not hardcoded localhost.
+    // Build the base URL clients will fetch: reflect the Host they used and the
+    // proxy's scheme (https behind a TLS reverse proxy), plus the secret prefix.
     let authority = host
         .map(|h| h.to_string())
         .unwrap_or_else(|| format!("127.0.0.1:{}", cfg.port));
+    let prefix = cfg.secret.as_ref().map(|s| format!("/{s}")).unwrap_or_default();
+    let base = format!("{scheme}://{authority}{prefix}");
     let mut out: Vec<String> = Vec::new();
-    'outer: for base in &cfg.upstreams {
-        let url = format!("{base}/stream/{ctype}/{}.json", url_encode(id));
+    'outer: for upstream in &cfg.upstreams {
+        let url = format!("{upstream}/stream/{ctype}/{}.json", url_encode(id));
         let Some(body) = http_get(&url) else { continue };
         for s in parse_streams(&body) {
             if out.len() >= cfg.max_streams {
@@ -298,8 +329,8 @@ fn streams_for(cfg: &Config, ctype: &str, id: &str, host: Option<&str>) -> Strin
             // LADSPA plugin; otherwise offer the progressive MPEG-TS endpoint.
             let leaf = if cfg.hls && cfg.ladspa_dir.is_some() { "index.m3u8" } else { "tan.ts" };
             let proxy_url = format!(
-                "http://{}/p/{}/{}/{}",
-                authority,
+                "{}/p/{}/{}/{}",
+                base,
                 b64url_encode(src.as_bytes()),
                 cfg.profile,
                 leaf
