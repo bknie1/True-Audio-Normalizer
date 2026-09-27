@@ -28,6 +28,10 @@ struct Config {
     profile: String,
     ffmpeg: String,
     self_exe: String,
+    /// Directory containing `tan_ladspa.so`, if found. When set, the movie
+    /// profile transcodes in a single ffmpeg pass via the LADSPA filter
+    /// (one source read) instead of the two-read pcm-filter pipe.
+    ladspa_dir: Option<String>,
 }
 
 pub fn run(args: &[String]) -> ! {
@@ -50,15 +54,18 @@ pub fn run(args: &[String]) -> ! {
         );
         std::process::exit(1);
     }
+    let self_exe = std::env::current_exe()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "tan-stremio".to_string());
+    let ladspa_dir = resolve_ladspa(flag(args, "--ladspa"), &self_exe);
     let cfg = Config {
         port: flag(args, "--port").and_then(|s| s.parse().ok()).unwrap_or(5870),
         bind: flag(args, "--bind").unwrap_or_else(|| "127.0.0.1".to_string()),
         upstreams,
         profile: flag(args, "--profile").unwrap_or_else(|| "movie".to_string()),
         ffmpeg: flag(args, "--ffmpeg").unwrap_or_else(|| "ffmpeg".to_string()),
-        self_exe: std::env::current_exe()
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_else(|_| "tan-stremio".to_string()),
+        self_exe,
+        ladspa_dir,
     };
     if crate::profile_by_name(&cfg.profile).is_none() {
         eprintln!("tan-stremio proxy: unknown profile '{}'", cfg.profile);
@@ -78,6 +85,10 @@ pub fn run(args: &[String]) -> ! {
     println!("Wrapping upstream addon(s):");
     for u in &cfg.upstreams {
         println!("  {u}");
+    }
+    match &cfg.ladspa_dir {
+        Some(d) => println!("Single-pass transcode: ON (LADSPA plugin at {d})"),
+        None => println!("Single-pass transcode: off (two-read pipe; build tan-stremio/ladspa for single-pass)"),
     }
     if cfg.bind != "127.0.0.1" && cfg.bind != "localhost" {
         eprintln!("warning: bound to {}, not localhost - no authentication.", cfg.bind);
@@ -256,9 +267,76 @@ fn streams_for(cfg: &Config, ctype: &str, id: &str) -> String {
 
 // --- Live transcode ---------------------------------------------------
 
+fn resolve_ladspa(flag_dir: Option<String>, self_exe: &str) -> Option<String> {
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Some(d) = flag_dir {
+        candidates.push(std::path::PathBuf::from(d));
+    }
+    if let Some(exe_dir) = std::path::Path::new(self_exe).parent() {
+        candidates.push(exe_dir.join("ladspa"));
+        candidates.push(exe_dir.to_path_buf());
+        // dev tree: target/<profile>/tan-stremio.exe -> ../../tan-stremio/ladspa
+        candidates.push(exe_dir.join("..").join("..").join("tan-stremio").join("ladspa"));
+    }
+    for c in candidates {
+        if c.join("tan_ladspa.so").is_file() {
+            return c.canonicalize().ok().map(|p| p.to_string_lossy().into_owned());
+        }
+    }
+    None
+}
+
 fn transcode(w: &mut &TcpStream, cfg: &Config, src: &str, profile: &str) -> io::Result<()> {
     let profile = if crate::profile_by_name(profile).is_some() { profile } else { &cfg.profile };
+    // Single-pass LADSPA is available for the movie profile (the plugin is
+    // movie-only); other profiles use the pcm-filter pipe.
+    if profile == "movie" {
+        if let Some(dir) = cfg.ladspa_dir.clone() {
+            return transcode_ladspa(w, cfg, src, &dir);
+        }
+    }
+    transcode_pipe(w, cfg, src, profile)
+}
 
+/// One ffmpeg pass: source read once, video copied, TAN applied to stereo via
+/// the LADSPA filter, remuxed to live MPEG-TS.
+fn transcode_ladspa(w: &mut &TcpStream, cfg: &Config, src: &str, dir: &str) -> io::Result<()> {
+    let mut mux = Command::new(&cfg.ffmpeg)
+        .current_dir(dir)
+        .args([
+            "-hide_banner", "-loglevel", "error", "-i", src,
+            "-map", "0:v:0", "-c:v", "copy", "-map", "0:a:0",
+            "-af", "aresample=48000,aformat=channel_layouts=stereo,ladspa=file=./tan_ladspa.so:plugin=tan",
+            "-c:a", "aac", "-b:a", "192k", "-f", "mpegts", "-",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()?;
+    let mut out = mux.stdout.take().expect("mux stdout");
+    write!(
+        w,
+        "HTTP/1.1 200 OK\r\nContent-Type: video/mp2t\r\n\
+         Access-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n"
+    )?;
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        match out.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => {
+                if w.write_all(&buf[..n]).is_err() {
+                    break;
+                }
+            }
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(_) => break,
+        }
+    }
+    let _ = mux.kill();
+    let _ = mux.wait();
+    Ok(())
+}
+
+fn transcode_pipe(w: &mut &TcpStream, cfg: &Config, src: &str, profile: &str) -> io::Result<()> {
     // Stage 1: decode source audio to raw stereo f32le.
     let mut dec = Command::new(&cfg.ffmpeg)
         .args(["-hide_banner", "-loglevel", "error", "-i", src,

@@ -1,0 +1,8 @@
+# build artifacts - rebuild with build-ladspa.ps1
+tan_ladspa.dll
+tan_ladspa.so
+tan_ladspa.def
+*.obj
+*.exp
+*.lib
+tan_pt.*

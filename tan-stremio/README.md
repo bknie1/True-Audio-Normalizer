@@ -42,11 +42,18 @@ TAN leveling (a quiet passage came up, a loud one came down) through a real
 ffmpeg pipeline, streamed to an HTTP client. Not yet exercised inside the
 Stremio UI against a live debrid account.
 
-**Limits (v1, deliberate):** only direct-URL (debrid) streams are wrapped; the
-source is read twice (once for video, once for audio - ~2x bandwidth);
-surround is downmixed to stereo; and the live stream **can't seek**. A
-single-read path (a stereo TAN LADSPA filter for ffmpeg) and seek support are
-the obvious next steps.
+**Single-pass (movie profile):** if the TAN **LADSPA** plugin is built
+(`ladspa/build-ladspa.ps1` -> `ladspa/tan_ladspa.so`), the proxy applies TAN
+inside a single ffmpeg pass - the source is read **once**, video copied, audio
+run through the plugin. The proxy auto-detects it (or pass `--ladspa <dir>`)
+and prints `Single-pass transcode: ON` at startup. Other profiles fall back to
+the two-read pipe below (the plugin is movie-only for now).
+
+**Limits (v1, deliberate):** only direct-URL (debrid) streams are wrapped;
+non-movie profiles read the source twice (once for video, once for audio -
+~2x bandwidth); surround is downmixed to stereo; and the live stream **can't
+seek**. Extending the LADSPA plugin to all profiles and adding seek (HLS
+segmentation) are the next steps.
 
 ## Local library mode
 
