@@ -288,25 +288,40 @@ fn resolve_ladspa(flag_dir: Option<String>, self_exe: &str) -> Option<String> {
 
 fn transcode(w: &mut &TcpStream, cfg: &Config, src: &str, profile: &str) -> io::Result<()> {
     let profile = if crate::profile_by_name(profile).is_some() { profile } else { &cfg.profile };
-    // Single-pass LADSPA is available for the movie profile (the plugin is
-    // movie-only); other profiles use the pcm-filter pipe.
-    if profile == "movie" {
-        if let Some(dir) = cfg.ladspa_dir.clone() {
-            return transcode_ladspa(w, cfg, src, &dir);
-        }
+    // Single-pass LADSPA when the plugin is present (all profiles, selected via
+    // its control port); otherwise the two-read pcm-filter pipe.
+    if let Some(dir) = cfg.ladspa_dir.clone() {
+        return transcode_ladspa(w, cfg, src, &dir, profile);
     }
     transcode_pipe(w, cfg, src, profile)
 }
 
+/// profile name -> tan-ffi profile_id (must match tan-ffi::profile_from_id and
+/// the tan_ladspa control port).
+fn profile_id(name: &str) -> u32 {
+    match name {
+        "music" => 1,
+        "universal" => 2,
+        "speech" => 3,
+        "night" => 4,
+        "game" => 5,
+        _ => 0, // movie
+    }
+}
+
 /// One ffmpeg pass: source read once, video copied, TAN applied to stereo via
 /// the LADSPA filter, remuxed to live MPEG-TS.
-fn transcode_ladspa(w: &mut &TcpStream, cfg: &Config, src: &str, dir: &str) -> io::Result<()> {
+fn transcode_ladspa(w: &mut &TcpStream, cfg: &Config, src: &str, dir: &str, profile: &str) -> io::Result<()> {
+    let af = format!(
+        "aresample=48000,aformat=channel_layouts=stereo,ladspa=file=./tan_ladspa.so:plugin=tan:controls=c0={}",
+        profile_id(profile)
+    );
     let mut mux = Command::new(&cfg.ffmpeg)
         .current_dir(dir)
         .args([
             "-hide_banner", "-loglevel", "error", "-i", src,
             "-map", "0:v:0", "-c:v", "copy", "-map", "0:a:0",
-            "-af", "aresample=48000,aformat=channel_layouts=stereo,ladspa=file=./tan_ladspa.so:plugin=tan",
+            "-af", af.as_str(),
             "-c:a", "aac", "-b:a", "192k", "-f", "mpegts", "-",
         ])
         .stdout(Stdio::piped())

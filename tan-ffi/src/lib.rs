@@ -5,9 +5,17 @@
 
 use tan_core::{Normalizer, Profile};
 
+// profile_id mapping. 0=movie and 1=music are kept for backward compatibility
+// (the web/site and APO pass those); 2..=5 were added so callers like the
+// tan_ladspa plugin can select any profile. The C ABI (function signatures) is
+// unchanged - this only widens the set of id values handled.
 fn profile_from_id(id: u32) -> Profile {
     match id {
         1 => Profile::music(),
+        2 => Profile::universal(),
+        3 => Profile::speech(),
+        4 => Profile::night(),
+        5 => Profile::game(),
         _ => Profile::movie(),
     }
 }

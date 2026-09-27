@@ -29,7 +29,7 @@ extern void tan_normalizer_free(TanNormalizer *handle);
 typedef struct {
     unsigned long sample_rate;
     TanNormalizer *norm;
-    LADSPA_Data *port[4]; /* inL, inR, outL, outR */
+    LADSPA_Data *port[5]; /* inL, inR, outL, outR, profile(control) */
     float *scratch;       /* interleaved work buffer */
     unsigned long scratch_cap; /* in floats */
 } TanInstance;
@@ -47,7 +47,7 @@ static LADSPA_Handle tan_instantiate(const LADSPA_Descriptor *desc, unsigned lon
 static void tan_connect_port(LADSPA_Handle instance, unsigned long port, LADSPA_Data *data)
 {
     TanInstance *ti = (TanInstance *)instance;
-    if (port < 4) {
+    if (port < 5) {
         ti->port[port] = data;
     }
 }
@@ -58,8 +58,17 @@ static void tan_activate(LADSPA_Handle instance)
     if (ti->norm) {
         tan_normalizer_free(ti->norm);
     }
-    ti->norm = tan_normalizer_new((unsigned int)ti->sample_rate, TAN_CHANNELS, TAN_PROFILE_MOVIE);
-    TRACE("activate: sr=%lu norm=%p\n", ti->sample_rate, (void *)ti->norm);
+    /* Profile from the control port (0=movie default; 1=music, 2=universal,
+     * 3=speech, 4=night, 5=game - matches tan-ffi profile_from_id). */
+    unsigned int prof = TAN_PROFILE_MOVIE;
+    if (ti->port[4]) {
+        float v = *ti->port[4];
+        if (v < 0.0f) v = 0.0f;
+        if (v > 5.0f) v = 5.0f;
+        prof = (unsigned int)(v + 0.5f);
+    }
+    ti->norm = tan_normalizer_new((unsigned int)ti->sample_rate, TAN_CHANNELS, prof);
+    TRACE("activate: sr=%lu profile=%u norm=%p\n", ti->sample_rate, prof, (void *)ti->norm);
 }
 
 static void tan_run(LADSPA_Handle instance, unsigned long n)
@@ -116,14 +125,15 @@ static void tan_cleanup(LADSPA_Handle instance)
     free(ti);
 }
 
-static const LADSPA_PortDescriptor g_ports[4] = {
+static const LADSPA_PortDescriptor g_ports[5] = {
     LADSPA_PORT_INPUT | LADSPA_PORT_AUDIO,
     LADSPA_PORT_INPUT | LADSPA_PORT_AUDIO,
     LADSPA_PORT_OUTPUT | LADSPA_PORT_AUDIO,
     LADSPA_PORT_OUTPUT | LADSPA_PORT_AUDIO,
+    LADSPA_PORT_INPUT | LADSPA_PORT_CONTROL,
 };
-static const char *const g_port_names[4] = {"Input L", "Input R", "Output L", "Output R"};
-static const LADSPA_PortRangeHint g_hints[4] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+static const char *const g_port_names[5] = {"Input L", "Input R", "Output L", "Output R", "Profile"};
+static const LADSPA_PortRangeHint g_hints[5] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 5}};
 
 static LADSPA_Descriptor g_desc = {
     0x54414E01, /* "TAN" + 1 - private-use unique id */
@@ -132,7 +142,7 @@ static LADSPA_Descriptor g_desc = {
     "TAN True Audio Normalizer (stereo)",
     "Brandon Knieriem",
     "MIT",
-    4,
+    5,
     g_ports,
     g_port_names,
     g_hints,
