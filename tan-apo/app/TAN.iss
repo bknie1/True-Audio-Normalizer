@@ -27,8 +27,10 @@ WizardStyle=modern
 UninstallDisplayName={#AppName}
 
 [Files]
-Source: "TanControl.exe";                       DestDir: "{app}"; Flags: ignoreversion
+Source: "TanControl.exe";                        DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\target\release\tan-live.exe";     DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\target\release\tan-stremio.exe";  DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\tan-stremio\ladspa\tan_ladspa.so"; DestDir: "{app}\ladspa"; Flags: ignoreversion
 Source: "..\tan-vad\scripts\tan-setup.ps1";      DestDir: "{app}"; Flags: ignoreversion
 Source: "..\tan-vad\scripts\tan-forward.ps1";    DestDir: "{app}"; Flags: ignoreversion
 Source: "README.txt";                            DestDir: "{app}"; Flags: isreadme

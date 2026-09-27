@@ -31,15 +31,25 @@ namespace TanControl
         private readonly Label _status = new Label();
         private readonly NotifyIcon _tray = new NotifyIcon();
 
+        // Stremio (debrid) real-time addon.
+        private readonly string _tanStremio;
+        private readonly TextBox _stremioUrl = new TextBox();
+        private readonly Button _stremioToggle = new Button();
+        private readonly Label _stremioStatus = new Label();
+        private Process _proxy;
+        private const int ProxyPort = 5870;
+
         public MainForm()
         {
             _tanLive = LocateFile("tan-live.exe",
                 new[] { "", @"..\..\..\target\release\", @"..\..\..\..\target\release\" });
             _setupPs1 = LocateFile("tan-setup.ps1",
                 new[] { "", @"..\tan-vad\scripts\", @"scripts\" });
+            _tanStremio = LocateFile("tan-stremio.exe",
+                new[] { "", @"..\..\..\target\release\", @"..\..\..\..\target\release\" });
 
             Text = "TAN - True Audio Normalizer";
-            Width = 420; Height = 320;
+            Width = 420; Height = 470;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -65,7 +75,20 @@ namespace TanControl
 
             _status.Left = 16; _status.Top = 244; _status.Width = 374; _status.ForeColor = Color.DimGray;
 
-            Controls.AddRange(new Control[] { title, hint, _cableStatus, _installCable, pl, _profile, ol, _output, _toggle, _status });
+            // --- Stremio (debrid) real-time addon ---
+            var sep = new Label { Left = 16, Top = 274, Width = 374, Height = 2, BorderStyle = BorderStyle.Fixed3D };
+            var sTitle = new Label { Text = "Stremio addon (for streamed movies)", Left = 16, Top = 284, Width = 380, Font = new Font(Font.FontFamily, 10, FontStyle.Bold) };
+            var sHint = new Label { Text = "Paste your debrid Torrentio \"Install\" URL, Start, then add the\nmanifest URL below in Stremio.", Left = 16, Top = 308, Width = 380, Height = 32, ForeColor = Color.DimGray };
+            _stremioUrl.Left = 16; _stremioUrl.Top = 344; _stremioUrl.Width = 280;
+            _stremioUrl.Text = "https://torrentio.strem.fun/<your-config>/manifest.json";
+            _stremioToggle.Text = "Start"; _stremioToggle.Left = 302; _stremioToggle.Top = 342; _stremioToggle.Width = 88;
+            _stremioToggle.Click += (s, e) => ToggleStremio();
+            var mLabel = new Label { Text = "Manifest: http://127.0.0.1:" + ProxyPort + "/manifest.json", Left = 16, Top = 376, Width = 374, ForeColor = Color.DimGray };
+            _stremioStatus.Left = 16; _stremioStatus.Top = 400; _stremioStatus.Width = 374; _stremioStatus.ForeColor = Color.DimGray;
+
+            Controls.AddRange(new Control[] { title, hint, _cableStatus, _installCable, pl, _profile, ol, _output, _toggle, _status,
+                sep, sTitle, sHint, _stremioUrl, _stremioToggle, mLabel, _stremioStatus });
+            if (_tanStremio == null) { _stremioToggle.Enabled = false; _stremioStatus.Text = "tan-stremio.exe not found next to this app."; }
 
             _tray.Icon = MakeIcon(Color.Gray);
             _tray.Visible = true;
@@ -73,11 +96,11 @@ namespace TanControl
             var menu = new ContextMenu();
             menu.MenuItems.Add("Show", (s, e) => { Show(); WindowState = FormWindowState.Normal; });
             menu.MenuItems.Add("Turn On/Off", (s, e) => Toggle());
-            menu.MenuItems.Add("Exit", (s, e) => { StopEngine(); _tray.Visible = false; Application.Exit(); });
+            menu.MenuItems.Add("Exit", (s, e) => { StopEngine(); StopProxy(); _tray.Visible = false; Application.Exit(); });
             _tray.ContextMenu = menu;
             _tray.DoubleClick += (s, e) => { Show(); WindowState = FormWindowState.Normal; };
 
-            FormClosing += (s, e) => StopEngine();
+            FormClosing += (s, e) => { StopEngine(); StopProxy(); };
             Resize += (s, e) => { if (WindowState == FormWindowState.Minimized) Hide(); };
 
             RefreshCable();
@@ -196,6 +219,37 @@ namespace TanControl
             _status.Text = "TAN is off (raw audio)";
             _tray.Icon = MakeIcon(Color.Gray);
             _tray.Text = "TAN (off)";
+        }
+
+        private void ToggleStremio()
+        {
+            if (_proxy != null && !_proxy.HasExited) { StopProxy(); return; }
+            if (_tanStremio == null) return;
+            string url = _stremioUrl.Text.Trim();
+            if (url.Length == 0 || url.IndexOf("<your-config>", StringComparison.Ordinal) >= 0)
+            {
+                MessageBox.Show("Paste your debrid Torrentio \"Install\" URL first (from torrentio.strem.fun/configure).", "Stremio addon");
+                return;
+            }
+            try
+            {
+                var psi = new ProcessStartInfo(_tanStremio, "proxy --upstream \"" + url + "\" --port " + ProxyPort)
+                { UseShellExecute = false, CreateNoWindow = true };
+                _proxy = Process.Start(psi);
+                _stremioToggle.Text = "Stop";
+                _stremioStatus.Text = "Addon running - add the manifest URL in Stremio, then pick a \"TAN\" stream.";
+                _stremioStatus.ForeColor = Color.Green;
+            }
+            catch (Exception ex) { MessageBox.Show("Could not start the addon: " + ex.Message); }
+        }
+
+        private void StopProxy()
+        {
+            try { if (_proxy != null && !_proxy.HasExited) _proxy.Kill(); } catch { }
+            _proxy = null;
+            _stremioToggle.Text = "Start";
+            _stremioStatus.Text = "Addon stopped.";
+            _stremioStatus.ForeColor = Color.DimGray;
         }
 
         [STAThread]

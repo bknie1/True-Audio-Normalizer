@@ -14,15 +14,22 @@ $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 if (-not (Test-Path "$here\TanControl.exe")) { throw "TanControl.exe build failed" }
 Write-Host "Built TanControl.exe"
 
-# 2. Engine (static CRT -> no VC++ redist dependency on end-user machines)
+# 2. Engines (static CRT -> no VC++ redist dependency on end-user machines)
+#    plus the LADSPA plugin for single-pass Stremio transcode.
 if (-not $SkipEngine) {
     Push-Location $repo
     try {
         $env:RUSTFLAGS = '-C target-feature=+crt-static'
-        cargo build -p tan-live --release
+        cargo build -p tan-live -p tan-stremio --release
+        Remove-Item Env:RUSTFLAGS -EA SilentlyContinue
+        # tan.lib (MSVC static) for the LADSPA plugin
+        cargo build -p tan-ffi --release --target x86_64-pc-windows-msvc
     } finally { Pop-Location; Remove-Item Env:RUSTFLAGS -EA SilentlyContinue }
+    & "$repo\tan-stremio\ladspa\build-ladspa.ps1"
 }
-if (-not (Test-Path "$repo\target\release\tan-live.exe")) { throw "tan-live.exe not built" }
+foreach ($f in "$repo\target\release\tan-live.exe", "$repo\target\release\tan-stremio.exe", "$repo\tan-stremio\ladspa\tan_ladspa.so") {
+    if (-not (Test-Path $f)) { throw "missing build output: $f" }
+}
 
 # 3. Installer
 $iscc = "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
