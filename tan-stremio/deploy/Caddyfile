@@ -1,0 +1,7 @@
+# Automatic HTTPS (Let's Encrypt) for your domain, reverse-proxied to the addon.
+# Caddy sets X-Forwarded-Proto=https and forwards the Host, so the addon emits
+# https://<domain>/... stream URLs that work in Stremio web and native apps.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy tan:5870
+}

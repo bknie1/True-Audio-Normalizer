@@ -59,6 +59,17 @@ One caveat: **Stremio *web* in a browser** can only load an HTTP stream from
 browser-web needs the proxy on the same machine (or HTTPS on the LAN box).
 Native apps - Android TV, desktop, mobile - are fine over LAN HTTP.
 
+### Hosted (install one URL on any device, anywhere)
+
+To install a single URL on an Android TV (or share across devices/networks)
+with nothing running nearby, host the proxy on a small VPS behind HTTPS. A
+self-contained Docker image + Caddy (automatic HTTPS) is in
+[`deploy/`](deploy/README.md): set your domain, debrid URL, and a secret, then
+`docker compose up -d --build`, and install
+`https://<domain>/<secret>/manifest.json`. Because TAN is a transcoder, the
+video streams through that box - see the deploy README for the bandwidth/legal
+notes.
+
 **Single-pass:** if the TAN **LADSPA** plugin is built
 (`ladspa/build-ladspa.ps1` -> `ladspa/tan_ladspa.so`), the proxy applies TAN
 inside a single ffmpeg pass - the source is read **once**, video copied, audio
