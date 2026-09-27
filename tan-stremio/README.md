@@ -34,26 +34,46 @@ entries - pick one to watch it normalized.
   streams (`infoHash`, no URL) have nothing to pull, so they're skipped.
 - `--profile <name>` - `movie` (default), `universal`, `music`, `speech`,
   `night`, `game`.
+- `--hls` - serve a **seekable HLS** playlist (works in Stremio web, Android TV
+  / ExoPlayer, and desktop) instead of a progressive MPEG-TS stream. Needs the
+  LADSPA plugin. Recommended for anything but desktop-mpv.
+- `--profile <name>` - `movie` (default), `universal`, `music`, `speech`,
+  `night`, `game`.
 - `--port` / `--bind` - default `5870` / `127.0.0.1`. `--ffmpeg <path>` if
   ffmpeg isn't on PATH. Needs `curl` (in-box on Windows 10+) to query upstream.
 
-**Verified:** end-to-end on this machine - upstream wrap, live transcode, and
-TAN leveling (a quiet passage came up, a loud one came down) through a real
-ffmpeg pipeline, streamed to an HTTP client. Not yet exercised inside the
-Stremio UI against a live debrid account.
+### Watching from another device (Android TV, etc.)
+
+Run the proxy on an always-on PC and reach it from other devices on your LAN:
+
+```
+tan-stremio proxy --upstream "<your Torrentio URL>" --bind 0.0.0.0 --hls
+```
+
+On the other device, install the manifest at `http://<PC-LAN-IP>:5870/manifest.json`.
+The stream/segment URLs it hands back **reflect the address the device connected
+on** (the Host header), so they're reachable from that device, not localhost.
+
+One caveat: **Stremio *web* in a browser** can only load an HTTP stream from
+`127.0.0.1`, not a `192.168.x.x` LAN IP (browser mixed-content rules), so
+browser-web needs the proxy on the same machine (or HTTPS on the LAN box).
+Native apps - Android TV, desktop, mobile - are fine over LAN HTTP.
 
 **Single-pass:** if the TAN **LADSPA** plugin is built
 (`ladspa/build-ladspa.ps1` -> `ladspa/tan_ladspa.so`), the proxy applies TAN
 inside a single ffmpeg pass - the source is read **once**, video copied, audio
 run through the plugin, for **any** profile (selected via the plugin's control
-port). The proxy auto-detects it (or pass `--ladspa <dir>`) and prints
-`Single-pass transcode: ON` at startup. Without the plugin it falls back to the
-two-read pipe below.
+port). Auto-detected (or `--ladspa <dir>`); `Single-pass transcode: ON` at
+startup. Without it, a two-read pipe (progressive only).
 
-**Limits (v1, deliberate):** only direct-URL (debrid) streams are wrapped;
-without the LADSPA plugin the source is read twice (~2x bandwidth); surround is
-downmixed to stereo; and the live stream **can't seek**. Seek (via HLS
-segmentation) is the next step.
+**Verified:** end-to-end against a local server standing in for debrid -
+upstream wrap, single-pass transcode, HLS playlist+segments with CORS, TAN
+leveling, and Host-reflected URLs. **Not** yet exercised inside the Stremio UI
+against a live debrid account or on an actual Android TV.
+
+**Limits:** only direct-URL (debrid) streams are wrapped; surround is downmixed
+to stereo; HLS seeking works within the transcoded-so-far range (linear
+transcode); browser-web needs localhost (above).
 
 ## Local library mode
 

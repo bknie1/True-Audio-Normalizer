@@ -16,10 +16,14 @@
 //! audio); surround is downmixed to stereo; and the live MPEG-TS stream does
 //! not support seeking. All are documented in the README.
 
+use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::process::{Command, Stdio};
-use std::sync::Arc;
+use std::path::PathBuf;
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 struct Config {
     port: u16,
@@ -35,6 +39,9 @@ struct Config {
     /// Cap on TAN variants offered per title, so a debrid addon's long stream
     /// list doesn't flood Stremio with duplicates.
     max_streams: usize,
+    /// Offer a seekable HLS playlist (browser/ExoPlayer-friendly) instead of a
+    /// progressive MPEG-TS stream. Requires the LADSPA plugin (single-pass).
+    hls: bool,
 }
 
 pub fn run(args: &[String]) -> ! {
@@ -70,6 +77,7 @@ pub fn run(args: &[String]) -> ! {
         self_exe,
         ladspa_dir,
         max_streams: flag(args, "--max-streams").and_then(|s| s.parse().ok()).filter(|&n| n > 0).unwrap_or(8),
+        hls: args.iter().any(|a| a == "--hls"),
     };
     if crate::profile_by_name(&cfg.profile).is_none() {
         eprintln!("tan-stremio proxy: unknown profile '{}'", cfg.profile);
@@ -94,7 +102,19 @@ pub fn run(args: &[String]) -> ! {
         Some(d) => println!("Single-pass transcode: ON (LADSPA plugin at {d})"),
         None => println!("Single-pass transcode: off (two-read pipe; build tan-stremio/ladspa for single-pass)"),
     }
-    if cfg.bind != "127.0.0.1" && cfg.bind != "localhost" {
+    let hls_ok = cfg.hls && cfg.ladspa_dir.is_some();
+    println!(
+        "Stream format: {}",
+        if hls_ok { "HLS (seekable; works in Stremio web / Android / desktop)" } else { "progressive MPEG-TS (desktop players)" }
+    );
+    if cfg.hls && cfg.ladspa_dir.is_none() {
+        eprintln!("warning: --hls needs the LADSPA plugin; falling back to progressive MPEG-TS.");
+    }
+    if cfg.bind == "0.0.0.0" {
+        println!("Bound to your LAN: on another device (e.g. Android TV) install the manifest at");
+        println!("  http://<THIS-PC-LAN-IP>:{}/manifest.json  (stream URLs auto-use the address the device connects on)", cfg.port);
+    }
+    if cfg.bind != "127.0.0.1" && cfg.bind != "localhost" && cfg.bind != "0.0.0.0" {
         eprintln!("warning: bound to {}, not localhost - no authentication.", cfg.bind);
     }
 
@@ -133,6 +153,11 @@ fn normalize_upstream(u: &str) -> String {
 struct Req {
     method: String,
     path: String,
+    /// The Host header (authority, e.g. "192.168.1.50:5870"). Used so the
+    /// stream/segment URLs we hand back use the same address the client reached
+    /// us on - essential when a separate device (Android TV) talks to a proxy
+    /// running on a LAN PC, not 127.0.0.1.
+    host: Option<String>,
 }
 
 fn read_req<R: BufRead>(r: &mut R) -> io::Result<Req> {
@@ -143,13 +168,18 @@ fn read_req<R: BufRead>(r: &mut R) -> io::Result<Req> {
     let mut parts = line.trim_end().split_whitespace();
     let method = parts.next().unwrap_or("").to_string();
     let path = parts.next().unwrap_or("/").to_string();
+    let mut host = None;
     loop {
         let mut h = String::new();
         if r.read_line(&mut h)? == 0 || h.trim_end().is_empty() {
             break;
         }
+        let line = h.trim_end();
+        if let Some(v) = line.get(..5).filter(|p| p.eq_ignore_ascii_case("host:")) .map(|_| &line[5..]) {
+            host = Some(v.trim().to_string());
+        }
     }
-    Ok(Req { method, path })
+    Ok(Req { method, path, host })
 }
 
 fn cors_json<W: Write>(w: &mut W, body: &str) -> io::Result<()> {
@@ -202,20 +232,30 @@ fn handle(stream: &TcpStream, cfg: &Config) -> io::Result<()> {
         let mut it = rest.splitn(2, '/');
         let ctype = it.next().unwrap_or("");
         let id = percent_decode(it.next().unwrap_or(""));
-        return cors_json(&mut w, &streams_for(cfg, ctype, &id));
+        return cors_json(&mut w, &streams_for(cfg, ctype, &id, req.host.as_deref()));
     }
-    // /p/<base64url(src)>/<profile>/tan.ts  -> live transcode
+    // /p/<b64src>/<profile>/<leaf>
+    //   tan.ts     -> progressive transcode (no seek)
+    //   index.m3u8 -> HLS playlist (seekable within transcoded range)
+    //   segN.ts    -> an HLS segment
     if let Some(rest) = path.strip_prefix("/p/") {
         let mut parts = rest.split('/');
-        let b64 = parts.next().unwrap_or("");
-        let profile = parts.next().unwrap_or(&cfg.profile);
-        let Some(src) = b64url_decode(b64).ok().and_then(|b| String::from_utf8(b).ok()) else {
+        let b64 = parts.next().unwrap_or("").to_string();
+        let profile = parts.next().unwrap_or(cfg.profile.as_str()).to_string();
+        let leaf = parts.next().unwrap_or("tan.ts").to_string();
+        let Some(src) = b64url_decode(&b64).ok().and_then(|b| String::from_utf8(b).ok()) else {
             return plain(&mut w, 404, "bad source");
         };
         if !(src.starts_with("http://") || src.starts_with("https://")) {
             return plain(&mut w, 404, "unsupported source");
         }
-        return transcode(&mut w, cfg, &src, profile);
+        if leaf == "index.m3u8" {
+            return hls_playlist(&mut w, cfg, &src, &profile, &b64);
+        }
+        if is_segment_name(&leaf) {
+            return hls_segment(&mut w, &profile, &b64, &leaf);
+        }
+        return transcode(&mut w, cfg, &src, &profile);
     }
 
     plain(&mut w, 404, "not found")
@@ -230,10 +270,15 @@ fn manifest_json() -> String {
     )
 }
 
-fn streams_for(cfg: &Config, ctype: &str, id: &str) -> String {
+fn streams_for(cfg: &Config, ctype: &str, id: &str, host: Option<&str>) -> String {
     if ctype != "movie" && ctype != "series" {
         return r#"{"streams":[]}"#.to_string();
     }
+    // Reflect the Host the client used so URLs are reachable from that device
+    // (e.g. the PC's LAN IP for an Android TV), not hardcoded localhost.
+    let authority = host
+        .map(|h| h.to_string())
+        .unwrap_or_else(|| format!("127.0.0.1:{}", cfg.port));
     let mut out: Vec<String> = Vec::new();
     'outer: for base in &cfg.upstreams {
         let url = format!("{base}/stream/{ctype}/{}.json", url_encode(id));
@@ -249,11 +294,15 @@ fn streams_for(cfg: &Config, ctype: &str, id: &str) -> String {
             }
             let label = s.title.or(s.name).unwrap_or_default();
             let label = first_line(&label);
+            // HLS (seekable, browser/ExoPlayer-friendly) needs the single-pass
+            // LADSPA plugin; otherwise offer the progressive MPEG-TS endpoint.
+            let leaf = if cfg.hls && cfg.ladspa_dir.is_some() { "index.m3u8" } else { "tan.ts" };
             let proxy_url = format!(
-                "http://127.0.0.1:{}/p/{}/{}/tan.ts",
-                cfg.port,
+                "http://{}/p/{}/{}/{}",
+                authority,
                 b64url_encode(src.as_bytes()),
-                cfg.profile
+                cfg.profile,
+                leaf
             );
             let title = if label.is_empty() {
                 "TAN normalized".to_string()
@@ -417,6 +466,143 @@ fn transcode_pipe(w: &mut &TcpStream, cfg: &Config, src: &str, profile: &str) ->
     let _ = mux.wait();
     let _ = tan.wait();
     let _ = dec.wait();
+    Ok(())
+}
+
+// --- HLS (seekable, browser/ExoPlayer-friendly) -----------------------
+
+struct HlsSession {
+    dir: PathBuf,
+    child: Child,
+    created: Instant,
+}
+
+fn sessions() -> &'static Mutex<HashMap<String, HlsSession>> {
+    static S: OnceLock<Mutex<HashMap<String, HlsSession>>> = OnceLock::new();
+    S.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+const MAX_HLS_SESSIONS: usize = 4;
+
+fn is_segment_name(leaf: &str) -> bool {
+    leaf.strip_prefix("seg")
+        .and_then(|s| s.strip_suffix(".ts"))
+        .map(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+        .unwrap_or(false)
+}
+
+fn hls_dir() -> PathBuf {
+    static N: AtomicU64 = AtomicU64::new(0);
+    let n = N.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!("tan-hls-{}-{}", std::process::id(), n))
+}
+
+fn hls_playlist(w: &mut &TcpStream, cfg: &Config, src: &str, profile: &str, b64: &str) -> io::Result<()> {
+    let Some(ladspa) = cfg.ladspa_dir.clone() else {
+        return plain(w, 404, "HLS requires the LADSPA plugin");
+    };
+    let profile = if crate::profile_by_name(profile).is_some() { profile } else { cfg.profile.as_str() };
+    let key = format!("{b64}|{profile}");
+
+    let dir = {
+        let mut map = sessions().lock().unwrap();
+        let reuse = map.get(&key).map(|s| s.dir.join("index.m3u8").is_file()).unwrap_or(false);
+        if reuse {
+            map.get(&key).unwrap().dir.clone()
+        } else {
+            if map.len() >= MAX_HLS_SESSIONS {
+                if let Some(oldest) = map.iter().min_by_key(|(_, s)| s.created).map(|(k, _)| k.clone()) {
+                    if let Some(mut s) = map.remove(&oldest) {
+                        let _ = s.child.kill();
+                        let _ = s.child.wait();
+                        let _ = std::fs::remove_dir_all(&s.dir);
+                    }
+                }
+            }
+            let dir = hls_dir();
+            if std::fs::create_dir_all(&dir).is_err() {
+                return plain(w, 502, "could not create session dir");
+            }
+            // Copy the plugin in so ffmpeg (cwd = this dir) loads ./tan_ladspa.so
+            // and writes the relative playlist/segments here.
+            let _ = std::fs::copy(PathBuf::from(&ladspa).join("tan_ladspa.so"), dir.join("tan_ladspa.so"));
+            let af = format!(
+                "aresample=48000,aformat=channel_layouts=stereo,ladspa=file=./tan_ladspa.so:plugin=tan:controls=c0={}",
+                profile_id(profile)
+            );
+            let child = Command::new(&cfg.ffmpeg)
+                .current_dir(&dir)
+                .args([
+                    "-hide_banner", "-loglevel", "error", "-i", src,
+                    "-map", "0:v:0", "-c:v", "copy", "-map", "0:a:0",
+                    "-af", af.as_str(),
+                    "-c:a", "aac", "-b:a", "192k",
+                    "-f", "hls", "-hls_time", "6", "-hls_list_size", "0",
+                    "-hls_flags", "append_list+independent_segments",
+                    "-hls_playlist_type", "event",
+                    "-hls_segment_filename", "seg%d.ts", "index.m3u8",
+                ])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn();
+            let child = match child {
+                Ok(c) => c,
+                Err(e) => return plain(w, 502, &format!("ffmpeg: {e}")),
+            };
+            map.insert(key.clone(), HlsSession { dir: dir.clone(), child, created: Instant::now() });
+            dir
+        }
+    };
+
+    let playlist = dir.join("index.m3u8");
+    for _ in 0..150 {
+        if playlist.metadata().map(|m| m.len() > 0).unwrap_or(false) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let body = match std::fs::read(&playlist) {
+        Ok(b) if !b.is_empty() => b,
+        _ => return plain(w, 502, "playlist not ready (source unreachable or not transcodable?)"),
+    };
+    write!(
+        w,
+        "HTTP/1.1 200 OK\r\nContent-Type: application/vnd.apple.mpegurl\r\n\
+         Content-Length: {}\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n",
+        body.len()
+    )?;
+    w.write_all(&body)
+}
+
+fn hls_segment(w: &mut &TcpStream, profile: &str, b64: &str, leaf: &str) -> io::Result<()> {
+    let key = format!("{b64}|{profile}");
+    let dir = {
+        let map = sessions().lock().unwrap();
+        match map.get(&key) {
+            Some(s) => s.dir.clone(),
+            None => return plain(w, 404, "no session"),
+        }
+    };
+    let seg = dir.join(leaf);
+    // A listed segment is complete; still allow a brief wait in case the player
+    // is right at the transcode frontier.
+    for _ in 0..200 {
+        if seg.is_file() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let mut file = match std::fs::File::open(&seg) {
+        Ok(f) => f,
+        Err(_) => return plain(w, 404, "segment not found"),
+    };
+    let len = file.metadata().map(|m| m.len()).unwrap_or(0);
+    write!(
+        w,
+        "HTTP/1.1 200 OK\r\nContent-Type: video/mp2t\r\nContent-Length: {len}\r\n\
+         Access-Control-Allow-Origin: *\r\nConnection: close\r\n\r\n"
+    )?;
+    io::copy(&mut file, w)?;
     Ok(())
 }
 
